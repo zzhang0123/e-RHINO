@@ -7,4 +7,33 @@ Core principle: **everything is an Operator acting on a State.**
 - ``erhino.inference`` — likelihood / calibration layer, separate from forward models.
 """
 
+from erhino.core import (
+    AbstractOperator,
+    Coordinates,
+    Environment,
+    ErhinoError,
+    FrozenMapping,
+    LambdaOperator,
+    MissingKeyError,
+    Pipeline,
+    PipelineError,
+    State,
+    StateValidationError,
+)
+
 __version__ = "0.1.0"
+
+__all__ = [
+    "AbstractOperator",
+    "Coordinates",
+    "Environment",
+    "ErhinoError",
+    "FrozenMapping",
+    "LambdaOperator",
+    "MissingKeyError",
+    "Pipeline",
+    "PipelineError",
+    "State",
+    "StateValidationError",
+    "__version__",
+]
