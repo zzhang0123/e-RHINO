@@ -73,14 +73,25 @@ never contaminates the instrument description.
 
 ## Roadmap (physics to port into the placeholder contracts)
 
-| Operator | Real model | Source |
+The radio operators model a **generic single-dish radio telescope**. The
+primary source for real physics is **limTOD** (the in-house single-dish TOD
+simulator), which will itself be rewritten in JAX + Equinox; until then the
+bodies stay placeholders. Instrument-specific parameters (e.g. RHINO's band,
+horn beam, receiver noise-wave / reflection specs) enter later as concrete
+operator *configurations*, never as framework assumptions.
+
+Note: argosim was considered as a base but not used — it targets
+interferometric arrays, while RHINO is single-dish; limTOD is the right
+upstream.
+
+| Operator | Real model (generic single dish) | Source |
 |---|---|---|
-| SkyOperator | HEALPix maps, moment-expanded foregrounds, 21 cm signal | limTOD, MERS |
-| BeamOperator | CST full-wave horn beams, ZYZ alm rotation, full-Stokes | TIBEC, limTOD |
-| SystemTemperatureOperator | noise-wave parameters (~0.1 K), ground spill | RHINO receiver model |
-| ReceiverOperator | VNA reflection coefficients (0.01%), bandpass | RHINO receiver model |
-| GainOperator | g(t) with 1/f flicker, CW calibration tone | hydra-tod |
-| NoiseOperator | radiometer equation (multiplicative), 1/f covariance | hydra-tod |
+| SkyOperator | sky maps + spectral models, observed along pointing | limTOD (MERS for foregrounds) |
+| BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes) |
+| SystemTemperatureOperator | receiver temperature, ground spill, atmosphere | limTOD / instrument configs |
+| ReceiverOperator | bandpass; later reflection/impedance effects | instrument configs |
+| GainOperator | g(t) with 1/f flicker fluctuations | limTOD, hydra-tod |
+| NoiseOperator | radiometer equation, 1/f covariance | limTOD, hydra-tod |
 | ADCOperator | true quantization + straight-through estimator | — |
 | BackendOperator | integration, RFI flagging, waterfall products | MomentRFI |
 

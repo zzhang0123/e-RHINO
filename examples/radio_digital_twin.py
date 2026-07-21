@@ -30,7 +30,7 @@ N_TIME, N_FREQ = 128, 32
 state = State(
     coords=Coordinates(
         time=jnp.linspace(0.0, 60.0, N_TIME),           # seconds
-        freq=jnp.linspace(60e6, 85e6, N_FREQ),          # Hz (RHINO band)
+        freq=jnp.linspace(60e6, 85e6, N_FREQ),          # Hz (demo values)
     ),
     env=Environment(temperature=jnp.array(280.0)),      # rides along for diagnostics
     key=jax.random.key(0),

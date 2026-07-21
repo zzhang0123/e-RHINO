@@ -4,9 +4,10 @@
 pipeline framework built on [JAX](https://github.com/jax-ml/jax) and
 [Equinox](https://github.com/patrick-kidger/equinox).
 
-Its first application is a **digital twin of the RHINO radio telescope** (a
-large pyramidal horn antenna targeting the 21 cm global signal at 60–85 MHz),
-but the core is domain-agnostic by construction.
+Its first application is a **digital twin of a single-dish radio telescope**
+(the eventual target instrument is RHINO, a horn antenna for the 21 cm global
+signal — for now the radio operators model a *generic* single dish), and the
+core is domain-agnostic by construction.
 
 > **Core principle: everything is an Operator acting on a State.**
 
@@ -107,10 +108,12 @@ Run the full demo: `uv run python examples/radio_digital_twin.py`.
 
 The architecture is complete and fully tested (129 tests; jit+grad+vmap
 end-to-end). The physics is **deliberately placeholder**: every
-`erhino.radio` operator documents the real model it will hold (CST-derived
-horn beams, receiver noise-wave parameters, 1/f gain with CW-tone tracking,
-radiometer-equation noise), to be ported from the RHINO-TODsim / limTOD /
-TIBEC / hydra-tod family.
+`erhino.radio` operator documents the generic single-dish model it will hold
+(beam-convolved sky, 1/f gain, radiometer-equation noise), to be ported from
+[limTOD](https://github.com/zzhang0123) — the single-dish TOD simulator that
+will itself be rewritten in JAX + Equinox. Instrument-specific parameters
+(RHINO's band, beam, receiver) arrive later as concrete configurations, not
+framework assumptions.
 
 See [DESIGN.md](DESIGN.md) for the architecture decisions and roadmap.
 

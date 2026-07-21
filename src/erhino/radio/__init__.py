@@ -1,11 +1,15 @@
-"""Radio-telescope digital-twin operators (placeholder physics for now).
+"""Generic single-dish radio telescope operators (placeholder physics for now).
 
 The forward chain of a single-dish instrument emerges as one Pipeline::
 
     Sky -> Beam -> SystemTemperature -> Receiver -> Gain -> Noise -> ADC -> Backend
 
-Every operator documents the real physics it will eventually hold; the current
-bodies are trivial-but-runnable placeholders that establish the contracts.
+Every operator is a trivial-but-runnable placeholder that establishes the
+contract. The real physics will be ported from limTOD (single-dish TOD
+simulation, itself to be rewritten in JAX + Equinox) and the related family —
+see DESIGN.md for the roadmap. Instrument-specific parameters (e.g. RHINO's)
+enter later as concrete operator configurations, never as framework
+assumptions.
 """
 
 from erhino.radio.adc import ADCOperator

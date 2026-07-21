@@ -1,11 +1,9 @@
 """BeamOperator — PLACEHOLDER beam response.
 
-Real physics to come (ported from TIBEC / limTOD): full-Stokes beam matrices
-derived from CST full-wave EM simulations of the RHINO horn, rotated into
-equatorial coordinates (ZYZ Euler convention) and convolved with the sky in
-harmonic space. The horn design makes the beam nearly independent of soil
-moisture (<1% correction variation) — a claim the real operator should let us
-verify by parametrizing residual beam/ground coupling.
+Real physics to come (port of limTOD's beam handling): a measured or
+EM-simulated primary beam convolved with the sky (limTOD does this via
+harmonic-space alm rotation, ZYZ Euler convention). This placeholder reduces
+the beam to a single coupling factor.
 """
 
 from typing import ClassVar

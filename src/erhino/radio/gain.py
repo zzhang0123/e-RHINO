@@ -1,10 +1,9 @@
 """GainOperator — PLACEHOLDER time-dependent gain.
 
-Real physics to come (hydra-tod / RHINO CW-tone calibration): multiplicative
-gain g(t) with 1/f flicker fluctuations (angular-frequency convention in the
-RHINO family), tracked in-situ by a continuous-wave calibration tone instead
-of Dicke switching. The gain is the primary calibration target — it must stay
-a differentiable leaf so gradient-based and Bayesian calibration can infer it.
+Real physics to come (port of limTOD / hydra-tod gain models): multiplicative
+gain g(t) with 1/f flicker fluctuations. The gain is the primary calibration
+target — it must stay a differentiable leaf so gradient-based and Bayesian
+calibration can infer it.
 """
 
 from typing import ClassVar

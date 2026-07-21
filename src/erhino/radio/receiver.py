@@ -1,11 +1,11 @@
 """System temperature and receiver chain — PLACEHOLDERS.
 
-Real physics to come (RHINO receiver model):
-- ``SystemTemperatureOperator``: receiver noise-wave parameters (target
-  constraint ~0.1 K), ground spill-over, atmospheric contribution.
-- ``ReceiverOperator``: VNA-measured complex reflection coefficients along the
-  signal chain (target constraint 0.01%), frequency-dependent bandpass,
-  impedance mismatch between antenna and LNA.
+Real physics to come (generic single-dish receiver model):
+- ``SystemTemperatureOperator``: receiver temperature, ground spill-over,
+  atmospheric contribution (instrument-specific refinements such as
+  noise-wave parameters come later as concrete configurations).
+- ``ReceiverOperator``: frequency-dependent bandpass, and eventually
+  reflection/impedance-mismatch effects along the signal chain.
 """
 
 from typing import ClassVar

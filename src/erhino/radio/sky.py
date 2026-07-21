@@ -1,11 +1,9 @@
 """SkyOperator — PLACEHOLDER sky model.
 
-Real physics to come (ported from limTOD / MERS / RHINO-TODsim):
-HEALPix sky maps with spectral models (power-law ensembles, moment-expanded
-foregrounds, 21 cm global signal), observed along ``coords.pointing`` via
-beam-convolved alm rotation. This placeholder only establishes the contract:
-*the sky operator creates ``data`` on the (time, frequency) grid defined by
-the coordinates.*
+Real physics to come (port of limTOD's sky-TOD step): sky maps with spectral
+models, observed along ``coords.pointing``. This placeholder only establishes
+the contract: *the sky operator creates ``data`` on the (time, frequency)
+grid defined by the coordinates.*
 """
 
 from typing import ClassVar
