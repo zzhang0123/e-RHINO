@@ -43,7 +43,9 @@ class FrozenMapping(Mapping):
 
         for k, v in src.items():
             if not isinstance(k, str):
-                raise TypeError(f"FrozenMapping keys must be strings, got {type(k).__name__}: {k!r}")
+                raise TypeError(
+                    f"FrozenMapping keys must be strings, got {type(k).__name__}: {k!r}"
+                )
             try:
                 hash(v)
             except TypeError:

@@ -76,14 +76,12 @@ class State(eqx.Module):
     def __check_init__(self):
         # Structural checks only (types, dtypes) — never traced values: jit-safe.
         if self.key is not None:
-            if not (
-                isinstance(self.key, jax.Array)
-                and jax.numpy.issubdtype(self.key.dtype, jax.dtypes.prng_key)
-            ):
+            is_array = isinstance(self.key, jax.Array)
+            if not (is_array and jax.numpy.issubdtype(self.key.dtype, jax.dtypes.prng_key)):
+                detail = f" with dtype {self.key.dtype}" if is_array else ""
                 raise StateValidationError(
                     "State.key must be a typed PRNG key made with jax.random.key(seed) "
-                    f"(got {type(self.key).__name__}"
-                    f"{f' with dtype {self.key.dtype}' if isinstance(self.key, jax.Array) else ''})."
+                    f"(got {type(self.key).__name__}{detail})."
                 )
         if self.coords is not None and not isinstance(self.coords, Coordinates):
             raise StateValidationError(
