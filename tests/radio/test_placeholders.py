@@ -1,0 +1,157 @@
+"""Contract tests for the radio placeholder operators.
+
+The math here is intentionally trivial (placeholders), but the *contracts* —
+shapes, purity, PRNG consumption, coordinate updates — are the real thing and
+must survive when real physics replaces the bodies.
+"""
+
+import jax
+import jax.numpy as jnp
+import pytest
+
+from erhino import AbstractOperator, State
+from erhino.core.errors import StateValidationError
+from erhino.radio import (
+    ADCOperator,
+    BackendOperator,
+    BeamOperator,
+    GainOperator,
+    NoiseOperator,
+    ReceiverOperator,
+    SkyOperator,
+    SystemTemperatureOperator,
+)
+
+# Mirrors tests/conftest.py fixture dimensions.
+N_TIME = 8
+N_FREQ = 4
+
+
+@pytest.fixture
+def data_state(template_state):
+    """Template state with a known (n_time, n_freq) data payload."""
+    return template_state.with_data(jnp.full((N_TIME, N_FREQ), 10.0))
+
+
+ALL_OPERATOR_CLASSES = [
+    SkyOperator,
+    BeamOperator,
+    SystemTemperatureOperator,
+    ReceiverOperator,
+    GainOperator,
+    NoiseOperator,
+    ADCOperator,
+    BackendOperator,
+]
+
+
+@pytest.mark.parametrize("cls", ALL_OPERATOR_CLASSES)
+def test_contract_declared(cls):
+    assert issubclass(cls, AbstractOperator)
+    assert isinstance(cls.requires, tuple) and isinstance(cls.provides, tuple)
+    assert "data" in cls.provides
+
+
+class TestSkyOperator:
+    def test_fills_data_from_coords(self, template_state):
+        out = SkyOperator(amplitude=jnp.array(1e3))(template_state)
+        assert out.data.shape == (N_TIME, N_FREQ)
+        assert jnp.all(out.data == 1e3)
+
+    def test_requires_coords(self):
+        with pytest.raises(StateValidationError, match="coords"):
+            SkyOperator(amplitude=jnp.array(1.0))(State(key=jax.random.key(0)))
+
+
+class TestSimpleArithmetic:
+    def test_beam_scales(self, data_state):
+        out = BeamOperator(solid_angle=jnp.array(0.5))(data_state)
+        assert jnp.all(out.data == 5.0)
+
+    def test_tsys_adds_scalar(self, data_state):
+        out = SystemTemperatureOperator(t_sys=jnp.array(150.0))(data_state)
+        assert jnp.all(out.data == 160.0)
+
+    def test_tsys_adds_per_freq(self, data_state):
+        t_sys = jnp.arange(float(N_FREQ))
+        out = SystemTemperatureOperator(t_sys=t_sys)(data_state)
+        assert jnp.array_equal(out.data[0], 10.0 + t_sys)
+
+    def test_receiver_applies_bandpass(self, data_state):
+        bandpass = jnp.arange(1.0, N_FREQ + 1.0)
+        out = ReceiverOperator(bandpass=bandpass)(data_state)
+        assert jnp.array_equal(out.data[3], 10.0 * bandpass)
+
+    def test_receiver_shape_mismatch_raises(self, data_state):
+        with pytest.raises(StateValidationError, match="bandpass"):
+            ReceiverOperator(bandpass=jnp.ones(N_FREQ + 1))(data_state)
+
+    def test_gain_scalar(self, data_state):
+        out = GainOperator(gain=jnp.array(2.0))(data_state)
+        assert jnp.all(out.data == 20.0)
+
+    def test_gain_per_time(self, data_state):
+        gain = jnp.arange(1.0, N_TIME + 1.0)
+        out = GainOperator(gain=gain)(data_state)
+        assert jnp.array_equal(out.data[:, 0], 10.0 * gain)
+
+    def test_input_state_untouched(self, data_state):
+        GainOperator(gain=jnp.array(2.0))(data_state)
+        assert jnp.all(data_state.data == 10.0)
+
+
+class TestNoiseOperator:
+    def test_consumes_key(self, data_state):
+        out = NoiseOperator(sigma=jnp.array(0.1))(data_state)
+        assert not jnp.array_equal(
+            jax.random.key_data(out.key), jax.random.key_data(data_state.key)
+        )
+
+    def test_seed_reproducible(self, data_state):
+        op = NoiseOperator(sigma=jnp.array(0.1))
+        assert jnp.array_equal(op(data_state).data, op(data_state).data)
+
+    def test_successive_draws_differ(self, data_state):
+        op = NoiseOperator(sigma=jnp.array(0.1))
+        once = op(data_state)
+        twice = op(once)  # advanced key -> different realisation
+        assert not jnp.array_equal(once.data, twice.data)
+
+    def test_noise_magnitude_scales_with_sigma(self, data_state):
+        quiet = NoiseOperator(sigma=jnp.array(1e-6))(data_state)
+        assert jnp.allclose(quiet.data, 10.0, atol=1e-4)
+
+
+class TestADCOperator:
+    def test_scales_and_clips(self, data_state):
+        out = ADCOperator(scale=jnp.array(1.0), n_bits=4)(data_state)  # limit = 8
+        assert jnp.all(out.data == 8.0)
+
+    def test_within_range_passes_through(self, data_state):
+        out = ADCOperator(scale=jnp.array(0.1), n_bits=14)(data_state)
+        assert jnp.allclose(out.data, 1.0)
+
+    def test_invalid_bits_rejected(self):
+        with pytest.raises(StateValidationError, match="n_bits"):
+            ADCOperator(scale=jnp.array(1.0), n_bits=0)
+
+
+class TestBackendOperator:
+    def test_averages_time_chunks(self, data_state):
+        out = BackendOperator(n_chunk=4)(data_state)
+        assert out.data.shape == (N_TIME // 4, N_FREQ)
+        assert jnp.all(out.data == 10.0)
+
+    def test_updates_time_coordinate(self, data_state):
+        out = BackendOperator(n_chunk=4)(data_state)
+        assert out.coords.time.shape == (N_TIME // 4,)
+        # mean of [0,1,2,3] and [4,5,6,7] on linspace(0,7,8)
+        assert jnp.array_equal(out.coords.time, jnp.array([1.5, 5.5]))
+
+    def test_indivisible_chunk_raises(self, data_state):
+        with pytest.raises(StateValidationError, match="divisible"):
+            BackendOperator(n_chunk=3)(data_state)
+
+    def test_invalid_chunk_rejected(self):
+        with pytest.raises(StateValidationError, match="n_chunk"):
+            BackendOperator(n_chunk=0)
