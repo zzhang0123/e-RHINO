@@ -25,14 +25,21 @@ enter later as concrete operator configurations, never as framework
 assumptions.
 """
 
-from erhino.radio.backend import BackendOperator, FlaggingOperator
+from erhino.radio.backend import BackendOperator, FlaggingOperator, MomentRFIFlaggingOperator
 from erhino.radio.environment import (
     GroundPickupOperator,
     IonosphereOperator,
     RFIOperator,
 )
+from erhino.radio.filters import (
+    AbstractLinearFilter,
+    FourierBandFilter,
+    SiderealFilter,
+    SkySpaceFilter,
+)
 from erhino.radio.instrument import (
     ADCOperator,
+    ApplyCalibrationOperator,
     BeamOperator,
     CWCalibrationOperator,
     EMIOperator,
@@ -43,29 +50,51 @@ from erhino.radio.instrument import (
     SystemTemperatureOperator,
 )
 from erhino.radio.sky import (
+    AbstractSkyModel,
+    AbstractSkyProjector,
     ForegroundOperator,
     GlobalSignalOperator,
+    LimTODProjector,
+    MatrixProjector,
+    MModeProjector,
     PointSourceOperator,
+    PowerLawSkyModel,
     SkyOperator,
+    SkySourceOperator,
+    UniformSkyModel,
 )
 
 __all__ = [
     "ADCOperator",
+    "AbstractLinearFilter",
+    "AbstractSkyModel",
+    "AbstractSkyProjector",
+    "ApplyCalibrationOperator",
     "BackendOperator",
     "BeamOperator",
     "CWCalibrationOperator",
     "EMIOperator",
     "FlaggingOperator",
     "ForegroundOperator",
+    "FourierBandFilter",
     "GainOperator",
     "GlobalSignalOperator",
     "GroundPickupOperator",
     "IonosphereOperator",
+    "LimTODProjector",
+    "MModeProjector",
+    "MatrixProjector",
+    "MomentRFIFlaggingOperator",
     "NoiseOperator",
     "NoiseWaveOperator",
     "PointSourceOperator",
+    "PowerLawSkyModel",
     "RFIOperator",
     "ReceiverOperator",
+    "SiderealFilter",
     "SkyOperator",
+    "SkySourceOperator",
+    "SkySpaceFilter",
     "SystemTemperatureOperator",
+    "UniformSkyModel",
 ]

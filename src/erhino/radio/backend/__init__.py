@@ -6,9 +6,10 @@ the differentiable forward model too.
 """
 
 from erhino.radio.backend.averaging import BackendOperator
-from erhino.radio.backend.flagging import FlaggingOperator
+from erhino.radio.backend.flagging import FlaggingOperator, MomentRFIFlaggingOperator
 
 __all__ = [
     "BackendOperator",
     "FlaggingOperator",
+    "MomentRFIFlaggingOperator",
 ]
