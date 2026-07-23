@@ -50,6 +50,7 @@ class NoiseWaveOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "noise_wave"
 
     t_unc: jax.Array
     t_cos: jax.Array

@@ -25,6 +25,7 @@ class GainOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "gain"
 
     gain: jax.Array
 

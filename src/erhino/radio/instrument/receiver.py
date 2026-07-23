@@ -33,6 +33,7 @@ class SystemTemperatureOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "atmosphere"
 
     t_sys: jax.Array
 
@@ -50,6 +51,7 @@ class ReceiverOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "bandpass"
 
     bandpass: jax.Array
 

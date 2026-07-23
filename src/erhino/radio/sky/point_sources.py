@@ -27,6 +27,7 @@ class PointSourceOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "point_sources"
 
     level: jax.Array
 

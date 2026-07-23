@@ -37,6 +37,7 @@ class FlaggingOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("aux.flags",)
+    graph_node: ClassVar[str] = "flagging"
 
     threshold: float = eqx.field(static=True)
 
@@ -75,6 +76,7 @@ class MomentRFIFlaggingOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("aux.flags",)
+    graph_node: ClassVar[str] = "flagging"
 
     config: FrozenMapping = eqx.field(
         static=True, converter=FrozenMapping, default_factory=FrozenMapping

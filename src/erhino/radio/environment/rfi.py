@@ -35,6 +35,7 @@ class RFIOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq", "key")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "rfi_field"
 
     amplitude: jax.Array
     occupancy: float = eqx.field(static=True)

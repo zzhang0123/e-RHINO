@@ -32,6 +32,7 @@ class EMIOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "emi"
 
     amplitude: jax.Array
     period: int = eqx.field(static=True)

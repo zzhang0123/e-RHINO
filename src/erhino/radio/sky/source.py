@@ -32,6 +32,7 @@ class SkySourceOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "observed_astro_sky"
 
     sky_model: AbstractSkyModel
     projector: AbstractSkyProjector

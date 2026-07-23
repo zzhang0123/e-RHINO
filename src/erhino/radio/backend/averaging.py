@@ -28,6 +28,7 @@ class BackendOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data", "coords.time")
     provides: ClassVar[tuple[str, ...]] = ("data", "coords.time")
+    graph_node: ClassVar[str] = "averaging"
 
     n_chunk: int = eqx.field(static=True)
 

@@ -28,6 +28,7 @@ class ADCOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "adc"
 
     scale: jax.Array
     n_bits: int = eqx.field(static=True)

@@ -34,6 +34,7 @@ class ForegroundOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "foregrounds"
 
     amplitude: jax.Array
     spectral_index: jax.Array

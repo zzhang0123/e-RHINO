@@ -19,6 +19,7 @@ preserve the raw data first with ``SnapshotOperator``.
 """
 
 import abc
+from typing import ClassVar
 
 import jax
 
@@ -31,6 +32,8 @@ _MODES = ("extract", "remove")
 
 class AbstractLinearFilter(AbstractOperator):
     """Base for projection filters. Concrete classes declare a static ``mode`` field."""
+
+    graph_node: ClassVar[str] = "filters"
 
     def __check_init__(self):
         mode = getattr(self, "mode", None)

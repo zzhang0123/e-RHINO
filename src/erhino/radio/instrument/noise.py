@@ -28,6 +28,7 @@ class NoiseOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data", "key")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "noise"
 
     sigma: jax.Array
 

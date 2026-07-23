@@ -25,6 +25,7 @@ class SkyOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "uniform_sky"
 
     amplitude: jax.Array
 

@@ -23,6 +23,7 @@ class BeamOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "beam"
 
     solid_angle: jax.Array
 

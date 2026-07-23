@@ -10,12 +10,21 @@ Organized by the element taxonomy (see ``DESIGN.md``):
   self-generated EMI, digitisation.
 - ``erhino.radio.backend`` — flagging, averaging.
 
-A forward model composes them with the two core combinators::
+A forward model composes them with the two core combinators, following the
+canonical signal-path graph (``erhino.radio.graph``; RFI enters as a
+pre-beam field, ground pickup as a post-beam effective temperature)::
 
     astro = Pipeline(SumOperator(signal, foregrounds, point_sources), ionosphere)
-    t_ant = SumOperator(astro, ground, rfi)
-    twin  = Pipeline(t_ant, beam, tsys, noise_wave, cw_tone, bandpass, gain,
+    field = Pipeline(SumOperator(astro, rfi_field), beam)
+    t_ant = SumOperator(field, ground_pickup)
+    twin  = Pipeline(t_ant, atmosphere, noise_wave, cw_tone, bandpass, gain,
                      noise, emi, adc, flagging, averaging)
+
+or, equivalently, by just providing the operators::
+
+    twin = assemble(signal, foregrounds, point_sources, ionosphere, rfi_field,
+                    beam, ground_pickup, atmosphere, noise_wave, cw_tone,
+                    bandpass, gain, noise, emi, adc, flagging, averaging)
 
 Every operator is a trivial-but-runnable placeholder that establishes the
 contract. The real physics will be ported from limTOD (single-dish TOD
@@ -98,3 +107,12 @@ __all__ = [
     "SystemTemperatureOperator",
     "UniformSkyModel",
 ]
+
+from erhino.radio.graph import RADIO_GRAPH, assemble  # noqa: E402  (needs operators above)
+
+__all__ += ["RADIO_GRAPH", "assemble"]
+
+from erhino.radio.graph import _validate_registrations as _v  # noqa: E402
+
+_v()
+del _v

@@ -42,6 +42,7 @@ class CWCalibrationOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data", "coords.freq")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "cw_tone"
 
     amplitude: jax.Array
     tone_freq: float = eqx.field(static=True)
@@ -72,6 +73,7 @@ class ApplyCalibrationOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "apply_cal"
 
     gain: jax.Array
 

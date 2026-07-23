@@ -33,6 +33,7 @@ class IonosphereOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("data", "coords.freq")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "ionosphere"
 
     delta: jax.Array
     ref_freq: float = eqx.field(static=True)

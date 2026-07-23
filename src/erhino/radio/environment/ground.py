@@ -38,6 +38,7 @@ class GroundPickupOperator(AbstractOperator):
 
     requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq", "env.temperature")
     provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "ground_pickup"
 
     coupling: jax.Array
     t_ground: jax.Array
