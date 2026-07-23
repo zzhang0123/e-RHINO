@@ -71,6 +71,56 @@ template, exposing `f(params) -> prediction`. Gradient calibrators, NumPyro,
 and future neural surrogates all connect through this one seam; calibration
 never contaminates the instrument description.
 
+## Element taxonomy → module map
+
+`erhino.radio` mirrors the element taxonomy of a single-dish global-signal
+experiment (source: `assets/elements.rtf`, local reference material — the
+`assets/` folder is gitignored because it contains an unpublished draft).
+
+```
+Raw data elements                          Module
+─────────────────────────────────────────  ─────────────────────────────────
+Astrophysical
+  21cm global signal (const LST, smooth ν) radio/sky/global_signal.py
+  diffuse foregrounds (LST & ν variable)   radio/sky/foregrounds.py
+  bright point sources (beam-diluted)      radio/sky/point_sources.py
+Environmental
+  ionosphere (distorts astro signal)       radio/environment/ionosphere.py
+  ground pickup (sidelobes, T_ambient)     radio/environment/ground.py
+  RFI (narrow+wideband, stochastic)        radio/environment/rfi.py
+Instrumental
+  beam (convolution, chromatic)            radio/instrument/beam.py
+  DI gains (1/f + slower drifts)           radio/instrument/gain.py
+  reflections + bandpass                   radio/instrument/receiver.py
+  noise-wave T/Γ terms (GCR draft Eq. 1)   radio/instrument/noise_wave.py
+  calibration signals (CW tone, loads)     radio/instrument/calibration.py
+  self-generated EMI (comb-like)           radio/instrument/emi.py
+  thermal noise (radiometer, T_sys)        radio/instrument/noise.py
+  digitisation artifacts                   radio/instrument/adc.py
+Processing
+  flagging (MomentRFI)                     radio/backend/flagging.py
+  averaging / integration                  radio/backend/averaging.py
+```
+
+Composition follows the physics: astrophysical components sum
+(`SumOperator`), the ionosphere distorts that sum, terrestrial contributions
+add on top, and the instrument chain is sequential (`Pipeline`). The chain
+order mirrors RHINO paper Eq. 6, `P_rec = g (T_ant + T_nw + T_cw) + T_n`:
+sky-side temperatures enter before the reflection/noise-wave terms, the CW
+tone joins *before* bandpass and gain (it tracks gain drift only if it
+passes through the gain), and thermal noise is added after the gain:
+
+    astro = Pipeline(SumOperator(signal, foregrounds, point_sources), ionosphere)
+    t_ant = SumOperator(astro, ground, rfi)
+    twin  = Pipeline(t_ant, beam, tsys, noise_wave, cw_tone, bandpass, gain,
+                     noise, emi, adc, flagging, averaging)
+
+Identified pain points (beam uncertainties, foreground spectra, low-level
+unflagged RFI, ground spill) are exactly where differentiable parameters +
+marginalisation will matter most — each placeholder docstring records the
+intended modelling strategy (beam-null degrees of freedom, moment expansion,
+stochastic RFI variance, modulated topographic template).
+
 ## Roadmap (physics to port into the placeholder contracts)
 
 The radio operators model a **generic single-dish radio telescope**. The
@@ -86,17 +136,27 @@ upstream.
 
 | Operator | Real model (generic single dish) | Source |
 |---|---|---|
-| SkyOperator | sky maps + spectral models, observed along pointing | limTOD (MERS for foregrounds) |
+| GlobalSignalOperator | physical 21 cm models (troughs, physical params) | — |
+| ForegroundOperator | uncertain spectral-index maps, moment expansion | limTOD, MERS |
+| PointSourceOperator | source catalogue through sidelobes | limTOD |
+| IonosphereOperator | chromatic absorption/refraction, time-variable | — |
+| GroundPickupOperator | topographic template, alt/az modulation, beam-coupled | EM sims |
+| RFIOperator | stochastic process model (night-to-night variance) | MomentRFI |
 | BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes) |
-| SystemTemperatureOperator | receiver temperature, ground spill, atmosphere | limTOD / instrument configs |
-| ReceiverOperator | bandpass; later reflection/impedance effects | instrument configs |
+| SystemTemperatureOperator | receiver temperature, atmosphere | instrument configs |
+| ReceiverOperator | bandpass; reflection/impedance effects | instrument configs |
+| NoiseWaveOperator | full Eq. 1 with F factor; T/Γ per frequency | noise-wave GCR draft |
+| CWCalibrationOperator | tone shape/stability, switched reference loads | RHINO paper Sect. 4 |
 | GainOperator | g(t) with 1/f flicker fluctuations | limTOD, hydra-tod |
 | NoiseOperator | radiometer equation, 1/f covariance | limTOD, hydra-tod |
+| EMIOperator | characterised switching-harmonic combs | lab measurements |
 | ADCOperator | true quantization + straight-through estimator | — |
-| BackendOperator | integration, RFI flagging, waterfall products | MomentRFI |
+| FlaggingOperator | MomentRFI flags informing the noise covariance | MomentRFI |
+| BackendOperator | integration, waterfall products | — |
 
-Plus: NumPyro bridge (`to_numpyro_model`), optax-based calibrators,
-uncertainty propagation, neural surrogate operators, multi-experiment support.
+Plus: NumPyro bridge (`to_numpyro_model`), GCR sampling of noise-wave
+parameters (draft Eq. 28), optax-based calibrators, uncertainty propagation,
+neural surrogate operators, multi-experiment support.
 
 ## Known deferred issues
 

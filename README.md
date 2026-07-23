@@ -21,8 +21,12 @@ State_in ──▶ Operator ──▶ State_out
   diagnostics, correlation studies, and reproducibility.
 - **Operator** — a pure `State -> State` transformation (`equinox.Module`);
   its array fields are differentiable parameters for free.
-- **Pipeline** — an ordered, named composition of operators; itself an
-  operator, so pipelines nest.
+- **Pipeline** — an ordered, named *sequential* composition of operators;
+  itself an operator, so pipelines nest.
+- **SumOperator** — a *parallel additive* composition: branches produce
+  independent contributions on the same grid (e.g. an antenna temperature
+  assembled from sky + ground + RFI components), each with its own PRNG
+  subkey.
 
 Because everything is a pytree, an entire instrument model is one function you
 can `jit`, `grad`, and `vmap`.
@@ -106,12 +110,22 @@ Run the full demo: `uv run python examples/radio_digital_twin.py`.
 
 ## Status
 
-The architecture is complete and fully tested (129 tests; jit+grad+vmap
-end-to-end). The physics is **deliberately placeholder**: every
-`erhino.radio` operator documents the generic single-dish model it will hold
-(beam-convolved sky, 1/f gain, radiometer-equation noise), to be ported from
-[limTOD](https://github.com/zzhang0123) — the single-dish TOD simulator that
-will itself be rewritten in JAX + Equinox. Instrument-specific parameters
+The architecture is complete and fully tested (jit+grad+vmap end-to-end).
+`erhino.radio` is organized by the element taxonomy of a single-dish
+experiment (see `DESIGN.md`):
+
+| Subpackage | Elements |
+|---|---|
+| `radio.sky` | 21 cm global signal, diffuse foregrounds, point sources |
+| `radio.environment` | ionosphere, ground pickup, RFI |
+| `radio.instrument` | beam, system temperature, noise-wave/reflection terms, bandpass, gain, CW calibration tone, thermal noise, self-EMI, ADC |
+| `radio.backend` | flagging, averaging |
+
+The physics is **deliberately placeholder**: every operator implements
+trivial-but-runnable math that establishes the contract (shapes, PRNG
+consumption, differentiability, linearity in calibration parameters), to be
+replaced by ports from limTOD — the single-dish TOD simulator that will
+itself be rewritten in JAX + Equinox. Instrument-specific parameters
 (RHINO's band, beam, receiver) arrive later as concrete configurations, not
 framework assumptions.
 
