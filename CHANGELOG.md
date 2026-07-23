@@ -1,0 +1,48 @@
+# Changelog
+
+## 0.1.0 (unreleased)
+
+Initial architecture of the differentiable scientific pipeline framework.
+
+### Core (`erhino.core`)
+
+- `State`: immutable pytree container (traced `data`/`coords`/`env`/`aux`/`key`,
+  static hashable `meta` via `FrozenMapping`); functional updates
+  (`replace`/`with_data`) and the PRNG protocol
+  (`subkey, state = state.next_key()`).
+- `AbstractOperator` / `LambdaOperator`: the universal `State -> State`
+  contract with declarative `requires`/`provides`.
+- `Pipeline`: sequential named composition (composite pattern — nests freely);
+  `run_with_intermediates`, `replace_stage`, name/index access.
+- `SumOperator`: parallel additive composition for source-type branches;
+  per-branch PRNG subkeys; leafwise pytree accumulation with loud trace-time
+  errors on shape/structure mismatch and dataless branches.
+
+### Radio (`erhino.radio`) — placeholder physics, real contracts
+
+- Reorganized by the single-dish element taxonomy:
+  `sky/` (uniform, global signal, foregrounds, point sources),
+  `environment/` (ionosphere, ground pickup, RFI),
+  `instrument/` (beam, sky-side system temperature, noise-wave/reflection
+  terms, CW calibration tone, bandpass, gain, thermal noise, EMI, ADC),
+  `backend/` (flagging, averaging). Flat `erhino.radio` API preserved.
+- Chain ordering follows the RHINO system equation
+  `P_rec = g (T_ant + T_nw + T_cw) + T_n`: CW tone before bandpass/gain
+  (it tracks gain drift only through the gain); sky-side temperatures before
+  the reflection/noise-wave terms.
+- `NoiseWaveOperator` preserves linearity in `t_nw = (T_unc, T_cos, T_sin)` —
+  the `d = H t_nw` structure GCR sampling relies on.
+
+### Inference (`erhino.inference`)
+
+- `build_forward_fn(pipeline, state_template, filter_spec)`: the single seam
+  between forward models and inference (Equinox partition/combine).
+- `Likelihood` protocol + `GaussianLikelihood`; minimal working
+  `GradientCalibrator`; `to_numpyro_model` stub (NumPyro optional extra).
+
+### Project
+
+- src layout, hatchling, uv-native; pytest with 80% coverage floor
+  (currently ~97%); ruff clean; runnable end-to-end demo
+  (`examples/radio_digital_twin.py`) including gradient recovery of a known
+  gain.

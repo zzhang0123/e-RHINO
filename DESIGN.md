@@ -7,8 +7,9 @@ digital twin is the first Pipeline, not the design center.
 ## Layering
 
 ```
-erhino.core        State / Operator / Pipeline     (domain-agnostic)
-erhino.radio       instrument operators            (placeholder physics)
+erhino.core        State / Operator / Pipeline / SumOperator   (domain-agnostic)
+erhino.radio       single-dish operators, organized by element  (placeholder physics)
+                   taxonomy: sky / environment / instrument / backend
 erhino.inference   likelihood / calibration        (treats pipelines as data)
 ```
 
@@ -63,7 +64,21 @@ Python loop that unrolls under jit — correct for heterogeneous stages. A
 `run_with_intermediates()` is a separate diagnostics method, not a flag, so
 the operator contract stays uniform.
 
-### D6 — Inference treats the Pipeline as data
+### D6 — SumOperator: parallel additive composition, source-only semantics
+
+Physical models are sums of independent components; `SumOperator` makes that
+a first-class combinator alongside sequential `Pipeline`. Semantics chosen
+deliberately narrow: branches are *source-type* operators producing
+contributions on the shared coordinate grid; any input `data` is ignored and
+branch writes to `coords`/`env`/`meta`/`aux` are discarded (parallel writes
+have no well-defined merge). Each branch receives its own PRNG subkey split
+off the main chain, so stochastic branches draw independent randomness and
+one seed reproduces the whole sum. Accumulation is leafwise
+(`jax.tree.map`), with loud trace-time errors on shape or pytree-structure
+mismatches and on branches producing no data — silent tuple concatenation
+and NumPy broadcasting were real failure modes caught in review.
+
+### D7 — Inference treats the Pipeline as data
 
 `build_forward_fn(pipeline, state_template, filter_spec)` partitions the
 pipeline into (trainable params, static skeleton) and closes over the
@@ -143,7 +158,7 @@ upstream.
 | GroundPickupOperator | topographic template, alt/az modulation, beam-coupled | EM sims |
 | RFIOperator | stochastic process model (night-to-night variance) | MomentRFI |
 | BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes) |
-| SystemTemperatureOperator | receiver temperature, atmosphere | instrument configs |
+| SystemTemperatureOperator | sky-side: atmosphere, ground spill (receiver temp lives in noise-wave T_0 / post-gain noise) | instrument configs |
 | ReceiverOperator | bandpass; reflection/impedance effects | instrument configs |
 | NoiseWaveOperator | full Eq. 1 with F factor; T/Γ per frequency | noise-wave GCR draft |
 | CWCalibrationOperator | tone shape/stability, switched reference loads | RHINO paper Sect. 4 |
@@ -168,4 +183,7 @@ neural surrogate operators, multi-experiment support.
   Future `pipeline.validate()` can check `requires`/`provides`.
 - `run_with_intermediates` keeps every stage's state in memory — diagnostics
   only.
+- `SumOperator` discards branch writes to `coords`/`env`/`meta`/`aux` (by
+  design, see D6) — an operator that must publish auxiliary output (e.g.
+  flags) belongs in the sequential chain, not in a Sum branch.
 - Typed PRNG keys (`jax.random.key`) are assumed throughout (jax ≥ 0.5).

@@ -45,33 +45,71 @@ Requires Python ≥ 3.11, `jax ≥ 0.5`, `equinox ≥ 0.13`.
 
 ### Forward modelling
 
+The forward model is assembled following the element taxonomy: astrophysical
+components *sum*, the ionosphere distorts that sum, terrestrial contributions
+add on top, and the instrument chain is *sequential* (ordering per the RHINO
+system equation `P_rec = g (T_ant + T_nw + T_cw) + T_n` — the CW tone joins
+before bandpass/gain so it tracks gain drift):
+
 ```python
 import jax, jax.numpy as jnp, equinox as eqx
-from erhino import State, Coordinates, Pipeline
-from erhino.radio import (SkyOperator, BeamOperator, SystemTemperatureOperator,
-                          ReceiverOperator, GainOperator, NoiseOperator,
-                          ADCOperator, BackendOperator)
+from erhino import State, Coordinates, Pipeline, SumOperator
+from erhino.radio import (
+    GlobalSignalOperator, ForegroundOperator, PointSourceOperator,   # sky
+    IonosphereOperator, GroundPickupOperator, RFIOperator,           # environment
+    BeamOperator, SystemTemperatureOperator, NoiseWaveOperator,      # instrument
+    CWCalibrationOperator, ReceiverOperator, GainOperator,
+    NoiseOperator, EMIOperator, ADCOperator,
+    FlaggingOperator, BackendOperator,                               # backend
+)
 
 state = State(
     coords=Coordinates(time=jnp.linspace(0, 60, 128),
                        freq=jnp.linspace(60e6, 85e6, 32)),
     key=jax.random.key(0),
-    meta={"telescope": "RHINO", "obs_id": "demo-001"},
+    meta={"telescope": "generic-dish", "obs_id": "demo-001"},
 )
 
-pipeline = Pipeline(
-    SkyOperator(amplitude=jnp.array(1e3)),
+astro = Pipeline(
+    SumOperator(
+        GlobalSignalOperator(depth=jnp.array(0.2), centre=jnp.array(72e6),
+                             width=jnp.array(5e6)),
+        ForegroundOperator(amplitude=jnp.array(1e3),
+                           spectral_index=jnp.array(2.5), ref_freq=70e6),
+        PointSourceOperator(level=jnp.array(2.0)),
+        names=("signal", "foregrounds", "point_sources"),
+    ),
+    IonosphereOperator(delta=jnp.array(0.01), ref_freq=70e6),
+    names=("sky", "ionosphere"),
+)
+
+t_ant = SumOperator(
+    astro,
+    GroundPickupOperator(coupling=jnp.array(0.01), t_ground=jnp.array(300.0)),
+    RFIOperator(amplitude=jnp.array(2e3), occupancy=0.01),
+    names=("astro", "ground", "rfi"),
+)
+
+twin = Pipeline(
+    t_ant,
     BeamOperator(solid_angle=jnp.array(0.8)),
-    SystemTemperatureOperator(t_sys=jnp.array(150.0)),
+    SystemTemperatureOperator(t_sys=jnp.array(150.0)),   # sky-side (atmosphere/spill)
+    NoiseWaveOperator(t_unc=jnp.array(1.0), t_cos=jnp.array(0.5),
+                      t_sin=jnp.array(0.2), t_zero=jnp.array(2.0),
+                      gamma_re=jnp.array(0.05), gamma_im=jnp.array(0.02)),
+    CWCalibrationOperator(amplitude=jnp.array(500.0), tone_freq=80e6),
     ReceiverOperator(bandpass=jnp.ones(32)),
-    GainOperator(gain=jnp.array(1.0)),
-    NoiseOperator(sigma=jnp.array(0.1)),
+    GainOperator(gain=jnp.array(1.1)),
+    NoiseOperator(sigma=jnp.array(0.5)),
+    EMIOperator(amplitude=jnp.array(0.3), period=8),
     ADCOperator(scale=jnp.array(1.0), n_bits=14),
+    FlaggingOperator(threshold=2.5e3),
     BackendOperator(n_chunk=4),
-    names=("sky", "beam", "tsys", "receiver", "gain", "noise", "adc", "backend"),
+    names=("t_ant", "beam", "tsys", "noise_wave", "cw_tone", "receiver",
+           "gain", "noise", "emi", "adc", "flagging", "backend"),
 )
 
-observation = eqx.filter_jit(pipeline)(state)     # simulated waterfall
+observation = eqx.filter_jit(twin)(state)     # simulated waterfall + aux flags
 ```
 
 ### Inference / calibration (a separate layer)
@@ -84,9 +122,9 @@ via the Equinox partition/combine idiom:
 from erhino.inference import build_forward_fn, GradientCalibrator
 
 # train ONLY the gain; freeze everything else
-spec = jax.tree.map(lambda _: False, pipeline)
+spec = jax.tree.map(lambda _: False, twin)
 spec = eqx.tree_at(lambda p: p["gain"].gain, spec, replace=True)
-forward, params0 = build_forward_fn(pipeline, state, filter_spec=spec)
+forward, params0 = build_forward_fn(twin, state, filter_spec=spec)
 
 params_fit, losses = GradientCalibrator(learning_rate=2e-7, n_steps=200).fit(
     forward, params0, observation.data
