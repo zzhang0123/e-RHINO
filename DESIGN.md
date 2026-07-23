@@ -69,9 +69,11 @@ the operator contract stays uniform.
 Physical models are sums of independent components; `SumOperator` makes that
 a first-class combinator alongside sequential `Pipeline`. Semantics chosen
 deliberately narrow: branches are *source-type* operators producing
-contributions on the shared coordinate grid; any input `data` is ignored and
-branch writes to `coords`/`env`/`meta`/`aux` are discarded (parallel writes
-have no well-defined merge). Each branch receives its own PRNG subkey split
+contributions on the shared coordinate grid; input `data` is stripped to
+`None` before entering each branch (enforced, not merely documented — a
+branch that tries to read caller data fails loudly), and branch writes to
+`coords`/`env`/`meta`/`aux` are discarded (parallel writes have no
+well-defined merge). Each branch receives its own PRNG subkey split
 off the main chain, so stochastic branches draw independent randomness and
 one seed reproduces the whole sum. Accumulation is leafwise
 (`jax.tree.map`), with loud trace-time errors on shape or pytree-structure
@@ -130,6 +132,53 @@ inside a gradient path; the flags they produce flow to inference through
 `SkySpaceFilter` noise weighting. Existing `aux["flags"]` are always passed
 as MomentRFI's `prior_mask` so flaggers compose instead of clobbering.
 
+### D11 — Composition is implicit in the signal path: graph-guided assembly
+
+The canonical signal-path graph (`erhino/radio/graph.py`, rendered by
+`Assembly.to_mermaid`) makes explicit composition unnecessary:
+`assemble(*operators)` compiles a *set* of operator instances into the
+Pipeline/SumOperator nesting induced on the graph — absent sources are
+pruned, absent transforms contract to identity, junctions materialize as
+SumOperator when two or more live branches converge (the upstream trunk
+becomes branch 0). The folder is a *compiler*: the result is an ordinary
+composite wrapped in `Assembly` (an operator carrying static lit/skipped
+metadata), so jit/grad/`build_forward_fn`/`tree_at` are untouched.
+
+Rules hardened by adversarial review:
+
+- **Determinism**: junction branch order is the graph's edge declaration
+  order, never call-site order — same provided set ⇒ identical tree, PRNG
+  stream, and jit cache entry (regression-tested bitwise).
+- **Source provenance**: every materialized Sum branch must contain a live
+  source; a transform-rooted branch is an assembly-time `AssemblyError`, not
+  a NoneType crash inside physics code.
+- **Caller-data regimes**: a sourced assembly rejects caller `state.data`
+  (it would be silently discarded); a source-free assembly is a transform
+  chain that *requires* caller data. Both checks are structural (jit-safe).
+- **Junctions are never operator slots**; multi-instance is allowed on
+  `many=True` nodes (sibling Sum branches for sources, call-order chaining
+  for the `filters` node).
+- **Placement** is declared on the operator class (`graph_node` ClassVar,
+  MRO-inherited so subclasses keep their base's slot), with `At(node, op)`
+  as the per-instance escape hatch. Assembly metadata is hashable
+  (`lit: tuple[str, ...]` + graph name); graph objects never enter the
+  pytree.
+
+**Equivalent-entry leaves**: the same physical effect may enter the chain at
+different stages in different forms, so the graph reserves placeholder
+leaves for each form even when no operator ships yet — ground spill as a
+pre-beam *field* (`ground_field`, convolved by the shared beam node) or as a
+post-beam *effective temperature* (`ground_pickup`, generic `t_sys_extra`);
+the astro path as component fields through `beam` or pre-convolved via
+`observed_astro_sky` (`SkySourceOperator`). The shared `beam` node stays a
+single differentiable object (the #1 marginalisation target) rather than
+fragmenting into per-operator copies.
+
+Deferred: switched calibration loads need a *selector* junction kind
+(replaces the antenna branch on the switching cycle) — a future SignalGraph
+extension; region-coverage (one operator spanning several nodes) is not yet
+modeled — `observed_astro_sky` covers today's case without it.
+
 ## Element taxonomy → module map
 
 `erhino.radio` mirrors the element taxonomy of a single-dish global-signal
@@ -165,19 +214,26 @@ Modular sky machinery (D8)
   sky models (params -> maps)              radio/sky/model.py
   projection engines (maps -> TOD)         radio/sky/projection.py
   composed sky slot                        radio/sky/source.py
+Graph-guided assembly (D11)
+  SignalGraph template + folder            core/graph.py
+  canonical single-dish graph              radio/graph.py
 ```
 
-Composition follows the physics: astrophysical components sum
-(`SumOperator`), the ionosphere distorts that sum, terrestrial contributions
-add on top, and the instrument chain is sequential (`Pipeline`). The chain
-order mirrors RHINO paper Eq. 6, `P_rec = g (T_ant + T_nw + T_cw) + T_n`:
-sky-side temperatures enter before the reflection/noise-wave terms, the CW
-tone joins *before* bandpass and gain (it tracks gain drift only if it
-passes through the gain), and thermal noise is added after the gain:
+Composition follows the physics, per the canonical signal-path graph
+(`erhino/radio/graph.py`, D11): astrophysical components sum
+(`SumOperator`), the ionosphere distorts that sum, RFI joins as a *pre-beam
+field* (it enters through the sidelobes and is convolved by the shared beam
+node), ground pickup joins as a *post-beam effective temperature*, and the
+instrument chain is sequential (`Pipeline`). The chain order mirrors RHINO
+paper Eq. 6, `P_rec = g (T_ant + T_nw + T_cw) + T_n`: sky-side temperatures
+enter before the reflection/noise-wave terms, the CW tone joins *before*
+bandpass and gain (it tracks gain drift only if it passes through the gain),
+and thermal noise is added after the gain:
 
     astro = Pipeline(SumOperator(signal, foregrounds, point_sources), ionosphere)
-    t_ant = SumOperator(astro, ground, rfi)
-    twin  = Pipeline(t_ant, beam, tsys, noise_wave, cw_tone, bandpass, gain,
+    field = Pipeline(SumOperator(astro, rfi_field), beam)
+    t_ant = SumOperator(field, ground_pickup)
+    twin  = Pipeline(t_ant, atmosphere, noise_wave, cw_tone, bandpass, gain,
                      noise, emi, adc, flagging, averaging)
 
 Identified pain points (beam uncertainties, foreground spectra, low-level

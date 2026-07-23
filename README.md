@@ -25,8 +25,8 @@ State_in ──▶ Operator ──▶ State_out
   itself an operator, so pipelines nest.
 - **SumOperator** — a *parallel additive* composition: branches produce
   independent contributions on the same grid (e.g. an antenna temperature
-  assembled from sky + ground + RFI components), each with its own PRNG
-  subkey.
+  assembled from beam-convolved sky + ground components), each with its own
+  PRNG subkey.
 
 Because everything is a pytree, an entire instrument model is one function you
 can `jit`, `grad`, and `vmap`.
@@ -43,25 +43,40 @@ Requires Python ≥ 3.11, `jax ≥ 0.5`, `equinox ≥ 0.13`.
 
 ## Usage
 
-### Forward modelling
+### Forward modelling — composition is implicit in the signal path
 
-The forward model is assembled following the element taxonomy: astrophysical
-components *sum*, the ionosphere distorts that sum, terrestrial contributions
-add on top, and the instrument chain is *sequential* (ordering per the RHINO
-system equation `P_rec = g (T_ant + T_nw + T_cw) + T_n` — the CW tone joins
-before bandpass/gain so it tracks gain drift):
+The canonical single-dish signal-path graph (`erhino.radio.RADIO_GRAPH`)
+knows how elements compose: provide a *set* of operators and `assemble`
+lights up the connected sub-path they induce and compiles it to the
+equivalent `Pipeline`/`SumOperator` nesting. Absent transforms are skipped
+as identity, junctions materialize as sums, and partial models come free:
+
+```python
+from erhino.radio import (assemble, GlobalSignalOperator, ForegroundOperator,
+                          SkyOperator, IonosphereOperator, BeamOperator)
+
+sky = assemble(GlobalSignalOperator(...), ForegroundOperator(...))
+#  ≡ SumOperator(signal, foregrounds)                     — just the sky
+
+part = assemble(SkyOperator(...), IonosphereOperator(...), BeamOperator(...))
+#  ≡ Pipeline(sky, ionosphere, beam)                      — beam-convolved sky only
+
+print(part)               # lit nodes + skipped-as-identity nodes
+print(part.to_mermaid())  # lit/dim signal-path rendering
+```
+
+The same physical effect may enter at different stages in different forms —
+the graph reserves *equivalent-entry leaves* for each (e.g. ground spill as
+a pre-beam field to convolve, or as a post-beam effective temperature via
+`ground_pickup`/`t_sys_extra`). See DESIGN.md D11.
+
+The full digital twin is one `assemble` call over the element set — see
+`examples/radio_digital_twin.py` for the complete runnable version:
 
 ```python
 import jax, jax.numpy as jnp, equinox as eqx
-from erhino import State, Coordinates, Pipeline, SumOperator
-from erhino.radio import (
-    GlobalSignalOperator, ForegroundOperator, PointSourceOperator,   # sky
-    IonosphereOperator, GroundPickupOperator, RFIOperator,           # environment
-    BeamOperator, SystemTemperatureOperator, NoiseWaveOperator,      # instrument
-    CWCalibrationOperator, ReceiverOperator, GainOperator,
-    NoiseOperator, EMIOperator, ADCOperator,
-    FlaggingOperator, BackendOperator,                               # backend
-)
+from erhino import State, Coordinates
+from erhino.radio import assemble  # + the operator imports
 
 state = State(
     coords=Coordinates(time=jnp.linspace(0, 60, 128),
@@ -70,47 +85,24 @@ state = State(
     meta={"telescope": "generic-dish", "obs_id": "demo-001"},
 )
 
-astro = Pipeline(
-    SumOperator(
-        GlobalSignalOperator(depth=jnp.array(0.2), centre=jnp.array(72e6),
-                             width=jnp.array(5e6)),
-        ForegroundOperator(amplitude=jnp.array(1e3),
-                           spectral_index=jnp.array(2.5), ref_freq=70e6),
-        PointSourceOperator(level=jnp.array(2.0)),
-        names=("signal", "foregrounds", "point_sources"),
-    ),
-    IonosphereOperator(delta=jnp.array(0.01), ref_freq=70e6),
-    names=("sky", "ionosphere"),
-)
-
-t_ant = SumOperator(
-    astro,
-    GroundPickupOperator(coupling=jnp.array(0.01), t_ground=jnp.array(300.0)),
-    RFIOperator(amplitude=jnp.array(2e3), occupancy=0.01),
-    names=("astro", "ground", "rfi"),
-)
-
-twin = Pipeline(
-    t_ant,
-    BeamOperator(solid_angle=jnp.array(0.8)),
-    SystemTemperatureOperator(t_sys=jnp.array(150.0)),   # sky-side (atmosphere/spill)
-    NoiseWaveOperator(t_unc=jnp.array(1.0), t_cos=jnp.array(0.5),
-                      t_sin=jnp.array(0.2), t_zero=jnp.array(2.0),
-                      gamma_re=jnp.array(0.05), gamma_im=jnp.array(0.02)),
-    CWCalibrationOperator(amplitude=jnp.array(500.0), tone_freq=80e6),
-    ReceiverOperator(bandpass=jnp.ones(32)),
-    GainOperator(gain=jnp.array(1.1)),
-    NoiseOperator(sigma=jnp.array(0.5)),
-    EMIOperator(amplitude=jnp.array(0.3), period=8),
-    ADCOperator(scale=jnp.array(1.0), n_bits=14),
-    FlaggingOperator(threshold=2.5e3),
-    BackendOperator(n_chunk=4),
-    names=("t_ant", "beam", "tsys", "noise_wave", "cw_tone", "receiver",
-           "gain", "noise", "emi", "adc", "flagging", "backend"),
+twin = assemble(
+    GlobalSignalOperator(...), ForegroundOperator(...), PointSourceOperator(...),
+    IonosphereOperator(...), RFIOperator(...),          # pre-beam field
+    BeamOperator(...),                                  # shared chromatic beam
+    GroundPickupOperator(...),                          # post-beam effective temp
+    SystemTemperatureOperator(...), NoiseWaveOperator(...),
+    CWCalibrationOperator(...), ReceiverOperator(...), GainOperator(...),
+    NoiseOperator(...), EMIOperator(...), ADCOperator(...),
+    FlaggingOperator(...), BackendOperator(...),
 )
 
 observation = eqx.filter_jit(twin)(state)     # simulated waterfall + aux flags
 ```
+
+Explicit `Pipeline`/`SumOperator` composition remains first-class —
+`assemble` merely compiles to it (the equivalence is regression-tested
+bitwise), with the chain order pinned by the element taxonomy and the RHINO
+system equation `P_rec = g (T_ant + T_nw + T_cw) + T_n`.
 
 ### Inference / calibration (a separate layer)
 
@@ -161,10 +153,10 @@ experiment (see `DESIGN.md`):
 | `radio.filters` | sidereal-repeat, sky-space (CG map-making), fringe-rate/delay filters |
 
 Analysis on calibrated data uses the same Pipeline formalism (see
-`examples/sky_projection_and_filters.py`): snapshot raw data
-(`SnapshotOperator`), apply calibration, flag with MomentRFI, filter — all
-differentiable except flagging (which is boolean by nature and bridges to
-numpy MomentRFI via `pure_callback`).
+`examples/sky_projection_and_filters.py` for snapshot -> apply-calibration ->
+sidereal/sky-space filtering): all steps are differentiable except flagging,
+which is boolean by nature and bridges to numpy MomentRFI via
+`pure_callback`.
 
 The physics is **deliberately placeholder**: every operator implements
 trivial-but-runnable math that establishes the contract (shapes, PRNG

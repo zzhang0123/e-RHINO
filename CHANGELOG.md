@@ -4,6 +4,25 @@
 
 Initial architecture of the differentiable scientific pipeline framework.
 
+### Graph-guided assembly (D11)
+
+- `erhino.core.graph`: `SignalGraph` declarative signal-path templates
+  (validated DAG, single sink, typed nodes) and `assemble` — compiles a set
+  of operator instances into the induced `Pipeline`/`SumOperator` nesting
+  (absent sources pruned, absent transforms skipped as identity, junctions
+  materialized as sums; deterministic branch order = graph declaration
+  order). Result is an `Assembly` operator with lit/skipped metadata,
+  node-id access (`assembly["gain"]`, `replace_node`), caller-data guards,
+  and lit/dim `to_mermaid` rendering.
+- `erhino.radio.graph`: the canonical single-dish graph (26 nodes) with
+  equivalent-entry leaves (`observed_astro_sky` — served by
+  `SkySourceOperator`; reserved placeholders `ground_field`, `t_sys_extra`)
+  and `graph_node` slots on every radio operator;
+  `assemble(*ops)` convenience. Full-set assembly is regression-tested
+  bitwise against the hand-built twin.
+- `SumOperator`: branch input data now stripped to `None` (D6 enforced);
+  added `replace_branch`.
+
 ### Integration seams (added after initial architecture)
 
 - **Modular sky** (`erhino.radio.sky`): `AbstractSkyModel` (params → maps) ×
