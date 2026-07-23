@@ -1,8 +1,21 @@
 """Generic single-dish radio telescope operators (placeholder physics for now).
 
-The forward chain of a single-dish instrument emerges as one Pipeline::
+Organized by the element taxonomy (see ``DESIGN.md``):
 
-    Sky -> Beam -> SystemTemperature -> Receiver -> Gain -> Noise -> ADC -> Backend
+- ``erhino.radio.sky`` — astrophysical: 21 cm global signal, foregrounds,
+  point sources (+ the simplest uniform ``SkyOperator``).
+- ``erhino.radio.environment`` — ionosphere, ground pickup, RFI.
+- ``erhino.radio.instrument`` — beam, system temperature, noise-wave /
+  reflection terms, bandpass, gain, CW calibration tone, thermal noise,
+  self-generated EMI, digitisation.
+- ``erhino.radio.backend`` — flagging, averaging.
+
+A forward model composes them with the two core combinators::
+
+    astro = Pipeline(SumOperator(signal, foregrounds, point_sources), ionosphere)
+    t_ant = SumOperator(astro, ground, rfi)
+    twin  = Pipeline(t_ant, beam, tsys, noise_wave, cw_tone, bandpass, gain,
+                     noise, emi, adc, flagging, averaging)
 
 Every operator is a trivial-but-runnable placeholder that establishes the
 contract. The real physics will be ported from limTOD (single-dish TOD
@@ -12,20 +25,46 @@ enter later as concrete operator configurations, never as framework
 assumptions.
 """
 
-from erhino.radio.adc import ADCOperator
-from erhino.radio.backend import BackendOperator
-from erhino.radio.beam import BeamOperator
-from erhino.radio.gain import GainOperator
-from erhino.radio.noise import NoiseOperator
-from erhino.radio.receiver import ReceiverOperator, SystemTemperatureOperator
-from erhino.radio.sky import SkyOperator
+from erhino.radio.backend import BackendOperator, FlaggingOperator
+from erhino.radio.environment import (
+    GroundPickupOperator,
+    IonosphereOperator,
+    RFIOperator,
+)
+from erhino.radio.instrument import (
+    ADCOperator,
+    BeamOperator,
+    CWCalibrationOperator,
+    EMIOperator,
+    GainOperator,
+    NoiseOperator,
+    NoiseWaveOperator,
+    ReceiverOperator,
+    SystemTemperatureOperator,
+)
+from erhino.radio.sky import (
+    ForegroundOperator,
+    GlobalSignalOperator,
+    PointSourceOperator,
+    SkyOperator,
+)
 
 __all__ = [
     "ADCOperator",
     "BackendOperator",
     "BeamOperator",
+    "CWCalibrationOperator",
+    "EMIOperator",
+    "FlaggingOperator",
+    "ForegroundOperator",
     "GainOperator",
+    "GlobalSignalOperator",
+    "GroundPickupOperator",
+    "IonosphereOperator",
     "NoiseOperator",
+    "NoiseWaveOperator",
+    "PointSourceOperator",
+    "RFIOperator",
     "ReceiverOperator",
     "SkyOperator",
     "SystemTemperatureOperator",

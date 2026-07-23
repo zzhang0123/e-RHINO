@@ -1,9 +1,13 @@
 """System temperature and receiver chain — PLACEHOLDERS.
 
 Real physics to come (generic single-dish receiver model):
-- ``SystemTemperatureOperator``: receiver temperature, ground spill-over,
-  atmospheric contribution (instrument-specific refinements such as
-  noise-wave parameters come later as concrete configurations).
+- ``SystemTemperatureOperator``: *sky-side* additive temperatures —
+  atmosphere, ground spill-over — which enter *before* the antenna/receiver
+  reflection terms and therefore see the ``(1-|Gamma|^2)`` loss. The receiver
+  temperature itself does NOT belong here: it enters after the reflection,
+  as the noise-wave ``T_0`` (see
+  :class:`~erhino.radio.instrument.noise_wave.NoiseWaveOperator`) and the
+  post-gain thermal noise ``T_n``.
 - ``ReceiverOperator``: frequency-dependent bandpass, and eventually
   reflection/impedance-mismatch effects along the signal chain.
 """
@@ -18,10 +22,13 @@ from erhino.core.state import State
 
 
 class SystemTemperatureOperator(AbstractOperator):
-    """Add a system-temperature offset [K] to ``state.data`` (placeholder).
+    """Add a sky-side system-temperature offset [K] to ``state.data`` (placeholder).
+
+    Scope: contributions that arrive *with* the sky signal (atmosphere, ground
+    spill) — applied before reflection/noise-wave terms in the chain.
 
     Attributes:
-        t_sys: system temperature — differentiable scalar or ``(n_freq,)`` array.
+        t_sys: sky-side temperature — differentiable scalar or ``(n_freq,)`` array.
     """
 
     requires: ClassVar[tuple[str, ...]] = ("data",)
