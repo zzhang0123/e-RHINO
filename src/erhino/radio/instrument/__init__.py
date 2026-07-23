@@ -10,7 +10,7 @@ bandpass and gain so it tracks gain drift)::
 
 from erhino.radio.instrument.adc import ADCOperator
 from erhino.radio.instrument.beam import BeamOperator
-from erhino.radio.instrument.calibration import CWCalibrationOperator
+from erhino.radio.instrument.calibration import ApplyCalibrationOperator, CWCalibrationOperator
 from erhino.radio.instrument.emi import EMIOperator
 from erhino.radio.instrument.gain import GainOperator
 from erhino.radio.instrument.noise import NoiseOperator
@@ -19,6 +19,7 @@ from erhino.radio.instrument.receiver import ReceiverOperator, SystemTemperature
 
 __all__ = [
     "ADCOperator",
+    "ApplyCalibrationOperator",
     "BeamOperator",
     "CWCalibrationOperator",
     "EMIOperator",

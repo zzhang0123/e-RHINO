@@ -55,3 +55,34 @@ class CWCalibrationOperator(AbstractOperator):
             raise StateValidationError("CWCalibrationOperator requires state.coords.freq.")
         channel = jnp.argmin(jnp.abs(state.coords.freq - self.tone_freq))
         return state.with_data(state.data.at[:, channel].add(self.amplitude))
+
+
+class ApplyCalibrationOperator(AbstractOperator):
+    """Apply an inferred gain solution: ``data / gain`` (PLACEHOLDER).
+
+    The inverse of :class:`~erhino.radio.instrument.gain.GainOperator` — the
+    bridge between calibration *inference* (``erhino.inference``, which
+    produces the gain solution) and calibrated-data *analysis* (filters,
+    map-making). Real version: full calibration application — bandpass
+    division, noise-wave subtraction, tone-tracked g(t) interpolation.
+
+    Attributes:
+        gain: inferred gain — differentiable scalar or ``(n_time,)`` array.
+    """
+
+    requires: ClassVar[tuple[str, ...]] = ("data",)
+    provides: ClassVar[tuple[str, ...]] = ("data",)
+
+    gain: jax.Array
+
+    def __call__(self, state: State) -> State:
+        if self.gain.ndim == 0:
+            return state.with_data(state.data / self.gain)
+        if self.gain.ndim == 1:
+            if self.gain.shape[0] != state.data.shape[0]:
+                raise StateValidationError(
+                    f"gain has {self.gain.shape[0]} samples but data has "
+                    f"{state.data.shape[0]} time samples."
+                )
+            return state.with_data(state.data / self.gain[:, None])
+        raise StateValidationError(f"gain must be scalar or 1D, got ndim={self.gain.ndim}.")
