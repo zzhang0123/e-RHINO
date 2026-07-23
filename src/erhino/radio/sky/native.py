@@ -66,17 +66,20 @@ class NativeLimTODProjector(AbstractSkyProjector):
         lat_deg: site latitude [deg] (static).
         lmax: harmonic band-limit; must match ``beam_alms`` length (static).
         nside: HEALPix nside of the sky maps, RING ordering (static).
-        normalize: numpy limTOD's ``normalize_beam`` — divide each sample
-            by the rotated beam's pixel sum (static).
+        normalize_beam: numpy limTOD's ``normalize_beam`` — divide each
+            sample by the rotated beam's pixel sum (static; same name as on
+            ``LimTODProjector``).
     """
 
     beam_alms: jax.Array
     lat_deg: float = eqx.field(static=True)
     lmax: int = eqx.field(static=True)
     nside: int = eqx.field(static=True)
-    normalize: bool = eqx.field(static=True, default=False)
+    normalize_beam: bool = eqx.field(static=True, default=False)
 
     def __check_init__(self):
+        # Deliberately inline (== limtod_jax.alm.nalm_of_lmax) so that shape
+        # validation works even when the optional limtod_jax isn't installed.
         n_alm = (self.lmax + 1) * (self.lmax + 2) // 2
         if self.beam_alms.ndim != 2 or self.beam_alms.shape[-1] != n_alm:
             raise StateValidationError(
@@ -98,6 +101,7 @@ class NativeLimTODProjector(AbstractSkyProjector):
             )
 
     def _zyz(self, ltj, coords: Coordinates) -> jax.Array:
+        assert coords.pointing is not None  # _validate_coords ran first
         n_time = coords.pointing.shape[0]
         selfrot = coords.extra.get("selfrot_deg", jnp.zeros(n_time))
         psi, theta, phi = ltj.zyz_of_pointing(
@@ -110,8 +114,10 @@ class NativeLimTODProjector(AbstractSkyProjector):
         return jnp.stack([psi, theta, phi], axis=-1)
 
     def _ones_alm(self, ltj) -> jax.Array | None:
-        if not self.normalize:
+        if not self.normalize_beam:
             return None
+        # Pure function of static (nside, lmax): under jit this is a constant
+        # subgraph XLA folds at compile time, so no per-call runtime cost.
         return ltj.ones_quadrature_alm(nside=self.nside, lmax=self.lmax)
 
     # ------------------------------------------------------------- interface
@@ -131,13 +137,20 @@ class NativeLimTODProjector(AbstractSkyProjector):
             sky_alm = ltj.map2alm_quad(sky_map, nside=self.nside, lmax=self.lmax)
             return ltj.generate_tod_sky(
                 beam_alm, sky_alm, angles,
-                lmax=self.lmax, normalize=self.normalize, ones_alm=ones_alm,
+                lmax=self.lmax, normalize=self.normalize_beam, ones_alm=ones_alm,
             )
 
         return jax.vmap(one_freq)(self.beam_alms, sky).T
 
     def adjoint(self, tod: jax.Array, coords: Coordinates) -> jax.Array:
         self._validate_coords(coords)
+        assert coords.pointing is not None  # narrowed by _validate_coords
+        n_time, n_freq = coords.pointing.shape[0], self.beam_alms.shape[0]
+        if tod.ndim != 2 or tod.shape[0] != n_time or tod.shape[1] != n_freq:
+            raise StateValidationError(
+                f"tod must be (n_time={n_time}, n_freq={n_freq}), "
+                f"got {tod.shape}."
+            )
         ltj = _limtod_jax()
         angles = self._zyz(ltj, coords)
         ones_alm = self._ones_alm(ltj)
@@ -145,7 +158,7 @@ class NativeLimTODProjector(AbstractSkyProjector):
         def one_freq(beam_alm, tod_t):
             alm = ltj.generate_tod_sky_adjoint(
                 tod_t, beam_alm, angles,
-                lmax=self.lmax, normalize=self.normalize, ones_alm=ones_alm,
+                lmax=self.lmax, normalize=self.normalize_beam, ones_alm=ones_alm,
             )
             return ltj.alm2map(alm, nside=self.nside, lmax=self.lmax)
 

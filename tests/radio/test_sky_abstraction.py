@@ -374,7 +374,7 @@ print(f"X64 OK worst_rel={{worst:.3e}}")
         """<forward(x), y> == <x, adjoint(y)> in plain pixel/TOD dots."""
         pytest.importorskip("limtod_jax")
         k1, k2, k3 = jax.random.split(key, 3)
-        proj = self._random_projector(k1, normalize=normalize)
+        proj = self._random_projector(k1, normalize_beam=normalize)
         x = jax.random.normal(k2, (2, self.N_PIX_HP))
         y = jax.random.normal(k3, (N_TIME, 2))
         lhs = dot(proj.forward(x, obs_coords), y)
