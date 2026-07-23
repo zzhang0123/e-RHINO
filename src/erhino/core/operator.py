@@ -76,3 +76,22 @@ class LambdaOperator(AbstractOperator):
     def on_data(cls, fn: Callable[[Any], Any]) -> "LambdaOperator":
         """Lift an ``Array -> Array`` (or pytree -> pytree) function onto ``state.data``."""
         return cls(fn=lambda state: state.with_data(fn(state.data)))
+
+
+class SnapshotOperator(AbstractOperator):
+    """Save the current data into ``aux["snapshot/<name>"]`` (zero-copy).
+
+    Place at the start of a processing pipeline to preserve raw data through
+    destructive steps (calibration application, filtering)::
+
+        analysis = Pipeline(SnapshotOperator(name="raw"), apply_cal, sidereal_filter)
+        raw = analysis(state).aux["snapshot/raw"]
+    """
+
+    requires: ClassVar[tuple[str, ...]] = ("data",)
+    provides: ClassVar[tuple[str, ...]] = ("aux",)
+
+    name: str = eqx.field(static=True, default="raw")
+
+    def __call__(self, state: State) -> State:
+        return state.checkpoint(self.name)

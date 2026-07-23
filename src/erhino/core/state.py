@@ -109,6 +109,23 @@ class State(eqx.Module):
         """Shorthand for ``state.replace(data=data)`` — the most common update."""
         return self.replace(data=data)
 
+    def checkpoint(self, name: str = "raw") -> "State":
+        """Snapshot the current data into ``aux["snapshot/<name>"]``.
+
+        Zero-copy (JAX arrays are immutable — the snapshot is a reference), so
+        checkpointing raw data before destructive processing (calibration,
+        filtering) costs nothing. Retrieve with
+        ``state.aux["snapshot/raw"]``.
+
+        Raises:
+            StateValidationError: if there is no data to snapshot.
+        """
+        if self.data is None:
+            raise StateValidationError(
+                f"Cannot checkpoint {name!r}: state.data is None (nothing to snapshot)."
+            )
+        return self.replace(aux={**self.aux, f"snapshot/{name}": self.data})
+
     # -- PRNG protocol -------------------------------------------------------
 
     def next_key(self) -> tuple[jax.Array, "State"]:

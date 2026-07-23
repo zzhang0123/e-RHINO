@@ -14,7 +14,7 @@ from erhino.core.errors import (
     StateValidationError,
 )
 from erhino.core.frozen import FrozenMapping
-from erhino.core.operator import AbstractOperator, LambdaOperator
+from erhino.core.operator import AbstractOperator, LambdaOperator, SnapshotOperator
 from erhino.core.pipeline import Pipeline
 from erhino.core.state import State
 
@@ -27,6 +27,7 @@ __all__ = [
     "LambdaOperator",
     "MissingKeyError",
     "Pipeline",
+    "SnapshotOperator",
     "PipelineError",
     "State",
     "StateValidationError",
