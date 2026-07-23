@@ -154,10 +154,17 @@ experiment (see `DESIGN.md`):
 
 | Subpackage | Elements |
 |---|---|
-| `radio.sky` | 21 cm global signal, diffuse foregrounds, point sources |
+| `radio.sky` | 21 cm global signal, diffuse foregrounds, point sources; **modular sky machinery**: `SkyModel × SkyProjector` (limTOD bridge, projection matrices, m-mode) |
 | `radio.environment` | ionosphere, ground pickup, RFI |
-| `radio.instrument` | beam, system temperature, noise-wave/reflection terms, bandpass, gain, CW calibration tone, thermal noise, self-EMI, ADC |
-| `radio.backend` | flagging, averaging |
+| `radio.instrument` | beam, system temperature, noise-wave/reflection terms, bandpass, gain, CW calibration tone, thermal noise, self-EMI, ADC; calibration application |
+| `radio.backend` | flagging (threshold + MomentRFI bridge), averaging |
+| `radio.filters` | sidereal-repeat, sky-space (CG map-making), fringe-rate/delay filters |
+
+Analysis on calibrated data uses the same Pipeline formalism (see
+`examples/sky_projection_and_filters.py`): snapshot raw data
+(`SnapshotOperator`), apply calibration, flag with MomentRFI, filter — all
+differentiable except flagging (which is boolean by nature and bridges to
+numpy MomentRFI via `pure_callback`).
 
 The physics is **deliberately placeholder**: every operator implements
 trivial-but-runnable math that establishes the contract (shapes, PRNG

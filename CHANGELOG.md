@@ -4,6 +4,25 @@
 
 Initial architecture of the differentiable scientific pipeline framework.
 
+### Integration seams (added after initial architecture)
+
+- **Modular sky** (`erhino.radio.sky`): `AbstractSkyModel` (params → maps) ×
+  `AbstractSkyProjector` (maps → TOD, with `adjoint` for linear engines),
+  composed by `SkySourceOperator`. Engines: `MatrixProjector` (precomputed
+  `generate_sky2sys_projection` matrix — differentiable today),
+  `LimTODProjector` (pure_callback oracle into numpy limTOD),
+  `MModeProjector` (m-mode transfer, drift scans). Port task book for the
+  native JAX limTOD rewrite: `docs/limtod-port-contract.md`.
+- **MomentRFI** (`erhino.radio.backend`): `MomentRFIFlaggingOperator`
+  (host-callback into `IterativeSurfaceFitter`; existing flags become
+  `prior_mask`) + `MaskedGaussianLikelihood` (flags → noise covariance).
+- **Filters** (`erhino.radio.filters`): `AbstractLinearFilter`
+  (extract/remove projection semantics) with `SiderealFilter` (day-repeating
+  subspace), `SkySpaceFilter` (CG map-make/reproject through any linear sky
+  projector), `FourierBandFilter` (fringe-rate/delay bands); plus
+  `ApplyCalibrationOperator` and raw-data preservation via
+  `State.checkpoint` / `SnapshotOperator`.
+
 ### Core (`erhino.core`)
 
 - `State`: immutable pytree container (traced `data`/`coords`/`env`/`aux`/`key`,

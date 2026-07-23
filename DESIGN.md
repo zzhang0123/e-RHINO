@@ -86,6 +86,47 @@ template, exposing `f(params) -> prediction`. Gradient calibrators, NumPyro,
 and future neural surrogates all connect through this one seam; calibration
 never contaminates the instrument description.
 
+### D8 — Modular sky: SkyModel × SkyProjector
+
+The sky term factorizes into *what the sky is* (`AbstractSkyModel`:
+params → `(n_freq, n_pix)` maps; differentiable amplitudes / spectral
+indices / moment coefficients) and *how it is seen* (`AbstractSkyProjector`:
+maps → `(n_time, n_freq)`; `forward` + `adjoint` for linear engines),
+composed by `SkySourceOperator`. Either half swaps independently, so the
+same sky can be observed through limTOD beam convolution, a precomputed
+projection matrix, or m-mode transfer matrices — and the same engine serves
+different skies. Three engines form a maturity ladder:
+`LimTODProjector` (pure_callback oracle — jit-safe, not differentiable) →
+`MatrixProjector` (offline `generate_sky2sys_projection` matrix — fully
+differentiable today for fixed pointing/beam, RHINO's drift-scan case) →
+native JAX port (`docs/limtod-port-contract.md`). Linear projectors expose
+`adjoint` (verified by dot-product tests) because map-making reuses it (D9).
+
+### D9 — Filters are linear projections; raw data survives via snapshots
+
+Sidereal-repeat extraction, sky-space (Wiener/map-making) filtering, and
+fringe-rate/delay filtering are all projections `P d`; `AbstractLinearFilter`
+fixes the shared semantics (`mode="extract"` → `P d`, `"remove"` → `d − P d`)
+and concrete filters supply `P`. `SkySpaceFilter` solves the regularised
+normal equations with matrix-free CG (`lax.custom_linear_solve` under the
+hood), reusing the forward model's projector adjoint — so filters are
+differentiable and their transfer functions can be marginalised in inference.
+Filters run on calibrated data (`ApplyCalibrationOperator`) in ordinary
+analysis Pipelines; `State.checkpoint(name)` / `SnapshotOperator` preserve
+raw data beforehand (zero-copy — JAX arrays are immutable).
+
+### D10 — Host-callback boundary policy
+
+`jax.pure_callback` into numpy packages is used in exactly two situations:
+(a) *permanently*, for inherently non-differentiable steps — RFI flagging via
+MomentRFI (`MomentRFIFlaggingOperator`), where the output is boolean and a
+gradient is meaningless; and (b) *temporarily*, as a correctness oracle for
+physics awaiting a native port (`LimTODProjector`). Callbacks must never sit
+inside a gradient path; the flags they produce flow to inference through
+`MaskedGaussianLikelihood` (zero weight on flagged samples) and to
+`SkySpaceFilter` noise weighting. Existing `aux["flags"]` are always passed
+as MomentRFI's `prior_mask` so flaggers compose instead of clobbering.
+
 ## Element taxonomy → module map
 
 `erhino.radio` mirrors the element taxonomy of a single-dish global-signal
@@ -115,6 +156,12 @@ Instrumental
 Processing
   flagging (MomentRFI)                     radio/backend/flagging.py
   averaging / integration                  radio/backend/averaging.py
+  calibration application                  radio/instrument/calibration.py
+  sidereal / sky-space / Fourier filters   radio/filters/
+Modular sky machinery (D8)
+  sky models (params -> maps)              radio/sky/model.py
+  projection engines (maps -> TOD)         radio/sky/projection.py
+  composed sky slot                        radio/sky/source.py
 ```
 
 Composition follows the physics: astrophysical components sum
@@ -157,7 +204,7 @@ upstream.
 | IonosphereOperator | chromatic absorption/refraction, time-variable | — |
 | GroundPickupOperator | topographic template, alt/az modulation, beam-coupled | EM sims |
 | RFIOperator | stochastic process model (night-to-night variance) | MomentRFI |
-| BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes) |
+| BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes); port task book: `docs/limtod-port-contract.md` |
 | SystemTemperatureOperator | sky-side: atmosphere, ground spill (receiver temp lives in noise-wave T_0 / post-gain noise) | instrument configs |
 | ReceiverOperator | bandpass; reflection/impedance effects | instrument configs |
 | NoiseWaveOperator | full Eq. 1 with F factor; T/Γ per frequency | noise-wave GCR draft |
