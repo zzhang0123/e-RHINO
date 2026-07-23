@@ -49,6 +49,11 @@ class AbstractOperator(eqx.Module):
     requires: ClassVar[tuple[str, ...]] = ()
     provides: ClassVar[tuple[str, ...]] = ()
 
+    #: Home node on a SignalGraph template (graph-guided assembly). Resolved
+    #: through the MRO, so subclasses inherit their base's slot; ``None``
+    #: means "not placeable without an explicit At(node, op) wrapper".
+    graph_node: ClassVar[str | None] = None
+
     @abc.abstractmethod
     def __call__(self, state: State) -> State:
         """Apply this operator to a state, returning a new state."""

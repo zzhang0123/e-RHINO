@@ -10,6 +10,9 @@ Core principle: **everything is an Operator acting on a State.**
 
 from erhino.core import (
     AbstractOperator,
+    Assembly,
+    AssemblyError,
+    At,
     Coordinates,
     Environment,
     ErhinoError,
@@ -18,6 +21,7 @@ from erhino.core import (
     MissingKeyError,
     Pipeline,
     PipelineError,
+    SignalGraph,
     SnapshotOperator,
     State,
     StateValidationError,
@@ -28,6 +32,10 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AbstractOperator",
+    "Assembly",
+    "AssemblyError",
+    "At",
+    "SignalGraph",
     "Coordinates",
     "Environment",
     "ErhinoError",
