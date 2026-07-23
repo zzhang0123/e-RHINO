@@ -41,6 +41,38 @@ def _auto_names(stages: Sequence[AbstractOperator]) -> tuple[str, ...]:
     return tuple(names)
 
 
+def validate_operators(
+    operators: Sequence[AbstractOperator], owner: str
+) -> tuple[AbstractOperator, ...]:
+    """Shared constructor validation for composite operators (Pipeline, SumOperator)."""
+    if not operators:
+        raise PipelineError(f"{owner} needs at least one operator.")
+    for i, op in enumerate(operators):
+        if not isinstance(op, AbstractOperator):
+            raise PipelineError(
+                f"{owner} operator {i} is {type(op).__name__}, not an AbstractOperator. "
+                "Wrap plain functions with LambdaOperator."
+            )
+    return tuple(operators)
+
+
+def resolve_names(
+    operators: Sequence[AbstractOperator], names: Sequence[str] | None
+) -> tuple[str, ...]:
+    """Shared name resolution/validation for composite operators."""
+    if names is None:
+        resolved = _auto_names(operators)
+    else:
+        resolved = tuple(names)
+        if len(resolved) != len(operators):
+            raise PipelineError(f"Got {len(resolved)} names for {len(operators)} operators.")
+        if not all(isinstance(n, str) for n in resolved):
+            raise PipelineError("Operator names must be strings.")
+    if len(set(resolved)) != len(resolved):
+        raise PipelineError(f"Operator names must be unique, got {resolved}.")
+    return resolved
+
+
 class Pipeline(AbstractOperator):
     """An ordered, named composition of operators.
 
@@ -67,29 +99,8 @@ class Pipeline(AbstractOperator):
         *stages: AbstractOperator,
         names: Sequence[str] | None = None,
     ):
-        if not stages:
-            raise PipelineError("Pipeline needs at least one stage.")
-        for i, stage in enumerate(stages):
-            if not isinstance(stage, AbstractOperator):
-                raise PipelineError(
-                    f"Pipeline stage {i} is {type(stage).__name__}, not an AbstractOperator. "
-                    "Wrap plain functions with LambdaOperator."
-                )
-        self.stages = tuple(stages)
-
-        if names is None:
-            resolved = _auto_names(stages)
-        else:
-            resolved = tuple(names)
-            if len(resolved) != len(stages):
-                raise PipelineError(
-                    f"Got {len(resolved)} names for {len(stages)} stages."
-                )
-            if not all(isinstance(n, str) for n in resolved):
-                raise PipelineError("Stage names must be strings.")
-        if len(set(resolved)) != len(resolved):
-            raise PipelineError(f"Stage names must be unique, got {resolved}.")
-        self.names = resolved
+        self.stages = validate_operators(stages, "Pipeline")
+        self.names = resolve_names(stages, names)
 
     # -- execution -----------------------------------------------------------
 

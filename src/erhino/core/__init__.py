@@ -4,6 +4,7 @@ This subpackage must never import from ``erhino.radio`` or ``erhino.inference``,
 so it can later be extracted as a standalone framework package.
 """
 
+from erhino.core.combinators import SumOperator
 from erhino.core.coordinates import Coordinates
 from erhino.core.environment import Environment
 from erhino.core.errors import (
@@ -29,4 +30,5 @@ __all__ = [
     "PipelineError",
     "State",
     "StateValidationError",
+    "SumOperator",
 ]
