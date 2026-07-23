@@ -154,7 +154,7 @@ experiment (see `DESIGN.md`):
 
 | Subpackage | Elements |
 |---|---|
-| `radio.sky` | 21 cm global signal, diffuse foregrounds, point sources; **modular sky machinery**: `SkyModel × SkyProjector` (limTOD bridge, projection matrices, m-mode) |
+| `radio.sky` | 21 cm global signal, diffuse foregrounds, point sources; **modular sky machinery**: `SkyModel × SkyProjector` — native differentiable limTOD engine (`NativeLimTODProjector`, via `pip install -e '<limTOD>[jax]'`), numpy-limTOD oracle bridge, projection matrices, m-mode |
 | `radio.environment` | ionosphere, ground pickup, RFI |
 | `radio.instrument` | beam, system temperature, noise-wave/reflection terms, bandpass, gain, CW calibration tone, thermal noise, self-EMI, ADC; calibration application |
 | `radio.backend` | flagging (threshold + MomentRFI bridge), averaging |

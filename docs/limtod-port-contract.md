@@ -1,5 +1,26 @@
 # limTOD → JAX port contract
 
+> **STATUS: DELIVERED** (2026-07-23, merged as `NativeLimTODProjector`).
+> The port lives in the limTOD repo as the `limtod_jax` package
+> (`angles` / `wigner` / `alm` / `hpx` / `core` / `projection` modules, with
+> its own float64 test suite carrying the 1e-6 oracle guarantees below).
+> e-RHINO's adapter is `erhino.radio.sky.NativeLimTODProjector`
+> (`src/erhino/radio/sky/native.py`; lazy import — install the engine with
+> `pip install -e '<limTOD>[jax]'`). e-RHINO-side contract tests:
+> `tests/radio/test_sky_abstraction.py::TestNativeLimTODProjector`
+> (float32-scale; the healpy-dependent oracle comparisons auto-skip where
+> numpy limTOD is not installed).
+>
+> One deliberate semantic pin: the native chain equals numpy
+> `generate_TOD_sky(..., truncate_frac_thres=0.0)` — the default `1e-10`
+> map truncation is a *nonlinear* cleanup step and is excluded from the
+> linear contract. Enable `jax_enable_x64` for quantitative work: the
+> map↔alm transforms carry O(10%) error in float32.
+>
+> The rest of this document is retained as the acceptance specification the
+> implementation satisfies (and the reference for future extensions, e.g.
+> full-Stokes).
+
 Task book for the agents rewriting limTOD's sky→TOD machinery in
 JAX + Equinox. The goal: replace e-RHINO's oracle bridge
 (`erhino.radio.sky.projection.LimTODProjector`, a `jax.pure_callback` into

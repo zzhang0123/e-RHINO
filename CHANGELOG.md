@@ -13,6 +13,13 @@ Initial architecture of the differentiable scientific pipeline framework.
   `LimTODProjector` (pure_callback oracle into numpy limTOD),
   `MModeProjector` (m-mode transfer, drift scans). Port task book for the
   native JAX limTOD rewrite: `docs/limtod-port-contract.md`.
+- **Native limTOD projector** (`NativeLimTODProjector`): the port contract
+  delivered — pure-JAX sky→TOD chain (Wigner rotation + harmonic beam sum
+  from the `limtod_jax` package in the limTOD repo), general pointing,
+  jit/vmap-safe, differentiable w.r.t. both sky maps and beam alms, exact
+  adjoint for `SkySpaceFilter` map-making. Matches numpy
+  `generate_TOD_sky(..., truncate_frac_thres=0.0)`; enable x64 for
+  quantitative accuracy. Optional dependency: `pip install -e '<limTOD>[jax]'`.
 - **MomentRFI** (`erhino.radio.backend`): `MomentRFIFlaggingOperator`
   (host-callback into `IterativeSurfaceFitter`; existing flags become
   `prior_mask`) + `MaskedGaussianLikelihood` (flags → noise covariance).
