@@ -10,7 +10,7 @@ components::
         SumOperator(global_signal, foregrounds, point_sources),
         ionosphere,                       # distorts the astrophysical sum
     )
-    t_ant = SumOperator(astro, ground_pickup, rfi)
+    t_ant = SumOperator(astro, ground_pickup)
 
 Both combinators are themselves operators, so they nest freely.
 """
@@ -36,6 +36,14 @@ def _tree_add(total: Any, contribution: Any, branch_name: str) -> Any:
     (static-shape) checks, so this stays jit-safe.
     """
 
+    total_structure = jax.tree.structure(total)
+    if total_structure != jax.tree.structure(contribution):
+        raise PipelineError(
+            f"SumOperator branch {branch_name!r} produced a data pytree whose structure "
+            f"differs from the previous branches: {jax.tree.structure(contribution)} "
+            f"vs accumulated {total_structure}."
+        )
+
     def add(a: jax.Array, b: jax.Array) -> jax.Array:
         if jnp.shape(a) != jnp.shape(b):
             raise PipelineError(
@@ -46,24 +54,18 @@ def _tree_add(total: Any, contribution: Any, branch_name: str) -> Any:
             )
         return a + b
 
-    try:
-        return jax.tree.map(add, total, contribution)
-    except ValueError as exc:
-        raise PipelineError(
-            f"SumOperator branch {branch_name!r} produced a data pytree whose structure "
-            f"differs from the previous branches: {exc}"
-        ) from exc
+    return jax.tree.map(add, total, contribution)
 
 
 class SumOperator(AbstractOperator):
     """Run source-type branches on the same input state and sum their data.
 
     Semantics:
-        * Every branch receives the *input* context (coords, env, meta). Any
-          existing ``state.data`` is ignored — SumOperator is a *source*
-          combinator whose branches each produce their own contribution on
-          the shared coordinate grid (include an identity branch if you want
-          to keep the input data).
+        * Every branch receives the *input* context (coords, env, meta) with
+          ``data`` stripped to ``None`` — SumOperator is a *source* combinator
+          whose branches each produce their own contribution on the shared
+          coordinate grid. A branch that tries to read input data fails
+          loudly instead of silently depending on caller state.
         * Branches must not change coords/env/meta; the output state carries
           the input context with ``data = sum(branch outputs)``.
         * PRNG: each branch gets its own subkey split off the main chain, so
@@ -94,9 +96,9 @@ class SumOperator(AbstractOperator):
         for name, branch in zip(self.names, self.branches, strict=True):
             if state.key is not None:
                 branch_key, state = state.next_key()
-                branch_in = state.replace(key=branch_key)
+                branch_in = state.replace(key=branch_key, data=None)
             else:
-                branch_in = state
+                branch_in = state.replace(data=None)
             contribution = branch(branch_in).data
             if contribution is None:
                 raise PipelineError(
@@ -121,3 +123,23 @@ class SumOperator(AbstractOperator):
 
     def __iter__(self) -> Iterator[AbstractOperator]:
         return iter(self.branches)
+
+    def replace_branch(self, index: int | str, operator: AbstractOperator) -> "SumOperator":
+        """Return a new SumOperator with one branch swapped; names preserved.
+
+        Parity with :meth:`~erhino.core.pipeline.Pipeline.replace_stage`.
+        """
+        if not isinstance(operator, AbstractOperator):
+            raise PipelineError(
+                f"Replacement must be an AbstractOperator, got {type(operator).__name__}."
+            )
+        if isinstance(index, str):
+            try:
+                index = self.names.index(index)
+            except ValueError:
+                raise KeyError(
+                    f"No branch named {index!r}; available: {self.names}"
+                ) from None
+        new_branches = list(self.branches)
+        new_branches[index] = operator
+        return SumOperator(*new_branches, names=self.names)

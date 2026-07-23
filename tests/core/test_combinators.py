@@ -150,6 +150,33 @@ class TestDataPytreeSemantics:
         with pytest.raises(PipelineError, match="produced no data"):
             op(State())  # state.data is None; passthrough contributes None
 
+    def test_branches_never_see_caller_data(self):
+        """D6 enforced: branch input data is stripped to None."""
+        from erhino.core.operator import LambdaOperator
+
+        probe = LambdaOperator(
+            fn=lambda s: s.with_data(jnp.ones(3) if s.data is None else jnp.full(3, 999.0))
+        )
+        out = SumOperator(probe)(State(data=jnp.full(3, 5.0)))
+        assert jnp.array_equal(out.data, jnp.ones(3))
+
+
+class TestReplaceBranch:
+    def test_swaps_and_preserves_names(self):
+        op = SumOperator(
+            Constant(value=jnp.array(1.0)), Constant(value=jnp.array(2.0)),
+            names=("a", "b"),
+        )
+        op2 = op.replace_branch("b", Constant(value=jnp.array(10.0)))
+        assert jnp.array_equal(op2(State()).data, jnp.full(3, 11.0))
+        assert op2.names == op.names
+        assert op["b"].value == 2.0  # original untouched
+
+    def test_rejects_non_operator(self):
+        op = SumOperator(Constant(value=jnp.array(1.0)))
+        with pytest.raises(PipelineError, match="AbstractOperator"):
+            op.replace_branch(0, lambda s: s)
+
 
 class _Identity(AbstractOperator):
     def __call__(self, state: State) -> State:
