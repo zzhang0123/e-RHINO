@@ -1,8 +1,11 @@
 # DIRT
 
+[![Documentation Status](https://readthedocs.org/projects/dirt-telescope/badge/?version=latest)](https://dirt-telescope.readthedocs.io/en/latest/)
+
 **Differentiable Instrument Response Twin** — a JAX + [Equinox](https://github.com/patrick-kidger/equinox)
 framework for building *differentiable digital twins* of single-antenna radio
 telescopes: horns, dipoles, and dishes alike.
+**Documentation: [dirt-telescope.readthedocs.io](https://dirt-telescope.readthedocs.io/en/latest/)**
 
 A DIRT twin is one pure function from sky and instrument parameters to raw
 data. Because every stage — foregrounds, ionosphere, beam, receiver
