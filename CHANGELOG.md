@@ -4,6 +4,23 @@
 
 Initial architecture of the differentiable scientific pipeline framework.
 
+### Inference layer completed (D12)
+
+- **NumPyro bridge** (`to_numpyro_model` — the last stub is gone): pytree
+  priors via `prior_template`/`set_prior`, semantic sample-site names from
+  stage names, masked Gaussian likelihood (flags -> zero weight), optional
+  noise-std inference, `predict_from_samples` posterior predictive.
+- **Uncertainty propagation** (`erhino.inference.uncertainty`):
+  `fisher_information` (exact Jacobians via jacfwd), `parameter_covariance`
+  (Cramer-Rao), `propagate_covariance` (delta-method prediction bands),
+  `push_forward` (Monte Carlo). Fisher matches NUTS posterior widths on the
+  demo problem.
+- **Neural surrogates**: `NeuralOperator` (eqx.nn.MLP as a positive spectral
+  response) — hybrid physics+ML with zero special machinery; placed
+  explicitly (e.g. `At("bandpass", ...)`). `AdamCalibrator` (pure JAX)
+  added; it recovers a rippled bandpass to <1% where fixed-step GD diverges.
+- Examples: `bayesian_and_uncertainty.py`, `neural_surrogate.py`.
+
 ### Graph-guided assembly (D11)
 
 - `erhino.core.graph`: `SignalGraph` declarative signal-path templates

@@ -113,6 +113,14 @@ system equation `P_rec = g (T_ant + T_nw + T_cw) + T_n`.
 
 ### Inference / calibration (a separate layer)
 
+The inference layer is complete: gradient and Adam calibrators, a real
+NumPyro bridge (pytree priors + semantic site names + masked likelihood +
+posterior predictive), Fisher/delta-method uncertainty forecasts, Monte
+Carlo pushforward, and neural surrogate stages (`NeuralOperator`) — all
+through one seam, `build_forward_fn`. See
+`examples/bayesian_and_uncertainty.py` and `examples/neural_surrogate.py`.
+
+
 Calibration never lives inside the forward model. The seam is
 `build_forward_fn`, which turns a pipeline into `f(params) -> prediction`
 via the Equinox partition/combine idiom:

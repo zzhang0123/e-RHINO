@@ -199,6 +199,40 @@ half-lit ("wire") / dim styling and dashed reserved leaves — the signal-path
 view of exactly what an assembly simulates, produced from Python so it always
 reflects the actual graph (`examples/render_signal_path.py`).
 
+### D12 — Bayesian bridge, uncertainty propagation, neural surrogates
+
+All three complete the inference layer through the D7 seam, adding no new
+runtime concepts:
+
+- **NumPyro bridge** (`inference/numpyro_bridge.py`): priors attach to
+  pipeline leaves *positionally* — `prior_template(pipeline)` +
+  `set_prior(priors, where, dist)` build a pytree with a distribution at
+  every leaf to infer. Sample sites get *semantic* names from composite
+  stage/branch names (`Assembly[...]["gain"].gain` → site `"gain_gain"`),
+  stable across fold nesting. The likelihood is masked Gaussian (RFI flags →
+  zero weight); `noise_std` may itself be a distribution.
+  Cardinal rule, documented loudly: in a Bayesian model the noise lives in
+  the LIKELIHOOD — hand the bridge a pipeline *without* stochastic operators.
+  `predict_from_samples` runs the posterior through the pipeline
+  (`eqx.filter_vmap` over sampled leaves only).
+- **Uncertainty propagation** (`inference/uncertainty.py`). Design choice
+  among (a) Fisher/delta-method, (b) MC pushforward, (c) Laplace: implement
+  (a) as the primary API — the domain-standard forecast, exact for linear
+  models, uniquely cheap here because `jax.jacfwd` gives exact Jacobians —
+  plus (b) as `push_forward` (pairs with the NumPyro posterior); (c) is the
+  composition of the two (MAP fit + `parameter_covariance` + sampling) and
+  is documented rather than wrapped.
+- **Neural surrogates** (`radio/surrogate.py`): `NeuralOperator` wraps an
+  `eqx.nn.MLP` as a positive spectral response `data * exp(MLP(freq))` —
+  network weights are ordinary differentiable leaves, so training,
+  Fisher forecasts and NumPyro sampling need zero ML-specific machinery.
+  Deliberately no default graph node: surrogate placement is a modelling
+  decision (`At("bandpass", NeuralOperator.create(...))` replaces the
+  physical bandpass with a learned one). `AdamCalibrator` (pure JAX, no
+  optax) joins `GradientCalibrator` because fixed-step GD demonstrably
+  stalls/collapses on MLP weights (the `exp` parametrization has a
+  vanishing-gradient region) while Adam recovers a rippled bandpass to <1%.
+
 ## Element taxonomy → module map
 
 `erhino.radio` mirrors the element taxonomy of a single-dish global-signal
@@ -295,9 +329,10 @@ upstream.
 | FlaggingOperator | MomentRFI flags informing the noise covariance | MomentRFI |
 | BackendOperator | integration, waterfall products | — |
 
-Plus: NumPyro bridge (`to_numpyro_model`), GCR sampling of noise-wave
-parameters (draft Eq. 28), optax-based calibrators, uncertainty propagation,
-neural surrogate operators, multi-experiment support.
+Plus (delivered): NumPyro bridge, Fisher/delta-method uncertainty
+propagation, Monte Carlo pushforward, neural surrogate operators, Adam
+calibrator. Still ahead: GCR sampling of noise-wave parameters (draft
+Eq. 28), optax integration for exotic optimizers, multi-experiment configs.
 
 ## Known deferred issues
 
