@@ -102,9 +102,4 @@ class TestGradientCalibrator:
             GradientCalibrator(n_steps=0)
 
 
-class TestNumpyroBridge:
-    def test_stub_raises_helpfully(self, pipeline, template_state):
-        from erhino.inference import to_numpyro_model
-
-        with pytest.raises((ImportError, NotImplementedError)):
-            to_numpyro_model(pipeline, template_state)
+# The NumPyro bridge has its own suite: tests/inference/test_numpyro_bridge.py
