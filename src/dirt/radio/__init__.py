@@ -4,10 +4,10 @@ Organized by the element taxonomy (see ``DESIGN.md``):
 
 - ``dirt.radio.sky`` — astrophysical: 21 cm global signal, foregrounds,
   point sources (+ the simplest uniform ``SkyOperator``).
-- ``dirt.radio.environment`` — ionosphere, ground pickup, RFI.
-- ``dirt.radio.instrument`` — beam, system temperature, noise-wave /
-  reflection terms, bandpass, gain, CW calibration tone, thermal noise,
-  self-generated EMI, digitisation.
+- ``dirt.radio.environment`` — ionosphere, atmospheric emission, ground
+  pickup, RFI.
+- ``dirt.radio.instrument`` — beam, noise-wave / reflection terms, bandpass,
+  gain, CW calibration tone, thermal noise, self-generated EMI, digitisation.
 - ``dirt.radio.backend`` — flagging, averaging.
 
 A forward model composes them with the two core combinators, following the
@@ -16,8 +16,8 @@ pre-beam field, ground pickup as a post-beam effective temperature)::
 
     astro = Pipeline(SumOperator(signal, foregrounds, point_sources), ionosphere)
     field = Pipeline(SumOperator(astro, rfi_field), beam)
-    t_ant = SumOperator(field, ground_pickup)
-    twin  = Pipeline(t_ant, atmosphere, noise_wave, cw_tone, bandpass, gain,
+    t_ant = SumOperator(field, ground_pickup, atmosphere)
+    twin  = Pipeline(t_ant, noise_wave, cw_tone, bandpass, gain,
                      noise, emi, adc, flagging, averaging)
 
 or, equivalently, by just providing the operators::
@@ -36,6 +36,7 @@ assumptions.
 
 from dirt.radio.backend import BackendOperator, FlaggingOperator, MomentRFIFlaggingOperator
 from dirt.radio.environment import (
+    AtmosphericEmissionOperator,
     GroundPickupOperator,
     IonosphereOperator,
     RFIOperator,
@@ -57,7 +58,6 @@ from dirt.radio.instrument import (
     NoiseOperator,
     NoiseWaveOperator,
     ReceiverOperator,
-    SystemTemperatureOperator,
 )
 from dirt.radio.sky import (
     AbstractSkyModel,
@@ -81,6 +81,7 @@ __all__ = [
     "AbstractSkyModel",
     "AbstractSkyProjector",
     "ApplyCalibrationOperator",
+    "AtmosphericEmissionOperator",
     "BackendOperator",
     "BeamOperator",
     "CWCalibrationOperator",
@@ -108,7 +109,6 @@ __all__ = [
     "SkyOperator",
     "SkySourceOperator",
     "SkySpaceFilter",
-    "SystemTemperatureOperator",
     "UniformSkyModel",
 ]
 

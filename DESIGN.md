@@ -1,7 +1,7 @@
 # DIRT Architecture
 
-The design record: **why** the framework is shaped the way it is, as twelve
-numbered decisions (D1–D12), each with the constraint that forced it. New
+The design record: **why** the framework is shaped the way it is, as
+numbered decisions (D1–D13), each with the constraint that forced it. New
 here? Read the [README](https://github.com/zzhang0123/dirt-telescope#readme) for
 the philosophy and the [guided tour](https://github.com/zzhang0123/dirt-telescope/blob/main/docs/tour.md)
 for the API — this document is for contributors
@@ -20,6 +20,7 @@ Contents: [Layering](#layering) ·
 [D10 callbacks](#d10--host-callback-boundary-policy) ·
 [D11 graph assembly](#d11--composition-is-implicit-in-the-signal-path-graph-guided-assembly) ·
 [D12 inference layer](#d12--bayesian-bridge-uncertainty-propagation-neural-surrogates) ·
+[D13 atmosphere entries](#d13--atmosphere-is-an-equivalent-entry-pair-not-a-trunk-stage) ·
 [Element taxonomy → modules](#element-taxonomy--module-map) ·
 [Physics roadmap](#roadmap-physics-to-port-into-the-placeholder-contracts)
 
@@ -253,6 +254,36 @@ runtime concepts:
   stalls/collapses on MLP weights (the `exp` parametrization has a
   vanishing-gradient region) while Adam recovers a rippled bandpass to <1%.
 
+### D13 — Atmosphere is an equivalent-entry pair, not a trunk stage
+
+Graph v1.1 placed `atmosphere` as a trunk transform between `t_ant_sum` and
+the `receiver_input` switch. The position satisfied the two hard boundary
+constraints (calibration loads must not see the sky; atmospheric emission
+arrives through the antenna and suffers the `(1-|Gamma|^2)` reflection loss)
+— but the argument for *trunk transform* over *sum branch* was an intended
+upgrade to radiative transfer `T' = e^(-τ) T_ant + T_atm (1 - e^(-τ))`, and
+that upgrade is wrong physics at that position: opacity applied to the whole
+antenna-temperature sum would attenuate `ground_pickup`, which never crosses
+the atmosphere. (Spotted by Zheng: "atmosphere 应该跟 t_sys_extra 平行".)
+
+Graph v1.2 therefore treats the atmosphere exactly like ground spill — one
+physical effect, two equivalent entrances:
+
+- `atmosphere` — **source leaf** into `t_ant_sum`, parallel to
+  `ground_pickup`/`t_sys_extra`: the beam-averaged emission as an additive
+  effective temperature (`AtmosphericEmissionOperator`, in
+  `radio/environment/atmosphere.py`). Both boundary constraints still hold —
+  every `t_ant_sum` branch sits before the switch and the noise-wave stage.
+- `atmosphere_field` — **reserved transform** on the astro branch between
+  `ionosphere` and `field_sum`: strict radiative transfer
+  (`e^(-τ sec z) T_sky + T_atm (1 - e^(-τ sec z))` inside the beam integral),
+  acting only on the signal that actually crosses the atmosphere — not on
+  `rfi_field`, `ground_field`, or `ground_pickup`.
+
+For a purely additive emission term the leaf form is mathematically identical
+to the old trunk form (sum commutativity), so this is a semantic fix with no
+numerical change to existing twins.
+
 ## Element taxonomy → module map
 
 `dirt.radio` mirrors the element taxonomy of a single-antenna global-signal
@@ -268,6 +299,7 @@ Astrophysical
   bright point sources (beam-diluted)      radio/sky/point_sources.py
 Environmental
   ionosphere (distorts astro signal)       radio/environment/ionosphere.py
+  atmosphere (emission; RT reserved, D13)  radio/environment/atmosphere.py
   ground pickup (sidelobes, T_ambient)     radio/environment/ground.py
   RFI (narrow+wideband, stochastic)        radio/environment/rfi.py
 Instrumental
@@ -306,8 +338,8 @@ and thermal noise is added after the gain:
 
     astro = Pipeline(SumOperator(signal, foregrounds, point_sources), ionosphere)
     field = Pipeline(SumOperator(astro, rfi_field), beam)
-    t_ant = SumOperator(field, ground_pickup)
-    twin  = Pipeline(t_ant, atmosphere, noise_wave, cw_tone, bandpass, gain,
+    t_ant = SumOperator(field, ground_pickup, atmosphere)
+    twin  = Pipeline(t_ant, noise_wave, cw_tone, bandpass, gain,
                      noise, emi, adc, flagging, averaging)
 
 Identified pain points (beam uncertainties, foreground spectra, low-level
@@ -338,7 +370,7 @@ upstream.
 | GroundPickupOperator | topographic template, alt/az modulation, beam-coupled | EM sims |
 | RFIOperator | stochastic process model (night-to-night variance) | MomentRFI |
 | BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes); |
-| SystemTemperatureOperator | sky-side: atmosphere, ground spill (receiver temp lives in noise-wave T_0 / post-gain noise) | instrument configs |
+| AtmosphericEmissionOperator | opacity x ambient temperature, beam-weighted airmass (receiver temp lives in noise-wave T_0 / post-gain noise); strict RT reserved at `atmosphere_field` (D13) | instrument configs |
 | ReceiverOperator | bandpass; reflection/impedance effects | instrument configs |
 | NoiseWaveOperator | full Eq. 1 with F factor; T/Γ per frequency | noise-wave GCR draft |
 | CWCalibrationOperator | tone shape/stability, switched reference loads | RHINO paper Sect. 4 |

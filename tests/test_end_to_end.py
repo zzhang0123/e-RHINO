@@ -9,17 +9,17 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from dirt import Pipeline, State
+from dirt import Pipeline, State, SumOperator
 from dirt.inference import build_forward_fn, mean_squared_error
 from dirt.radio import (
     ADCOperator,
+    AtmosphericEmissionOperator,
     BackendOperator,
     BeamOperator,
     GainOperator,
     NoiseOperator,
     ReceiverOperator,
     SkyOperator,
-    SystemTemperatureOperator,
 )
 
 N_FREQ = 4  # matches tests/conftest.py
@@ -27,16 +27,25 @@ N_FREQ = 4  # matches tests/conftest.py
 
 @pytest.fixture
 def demo_pipeline():
+    # Atmospheric emission is a source branch of the antenna-temperature sum,
+    # mirroring the canonical graph (parallel to ground_pickup/t_sys_extra).
+    t_ant = SumOperator(
+        Pipeline(
+            SkyOperator(amplitude=jnp.array(1.0e3)),
+            BeamOperator(solid_angle=jnp.array(0.8)),
+            names=("sky", "beam"),
+        ),
+        AtmosphericEmissionOperator(t_atm=jnp.array(150.0)),
+        names=("observed_sky", "atmosphere"),
+    )
     return Pipeline(
-        SkyOperator(amplitude=jnp.array(1.0e3)),
-        BeamOperator(solid_angle=jnp.array(0.8)),
-        SystemTemperatureOperator(t_sys=jnp.array(150.0)),
+        t_ant,
         ReceiverOperator(bandpass=jnp.ones(N_FREQ)),
         GainOperator(gain=jnp.array(1.0)),
         NoiseOperator(sigma=jnp.array(0.1)),
         ADCOperator(scale=jnp.array(1.0), n_bits=14),
         BackendOperator(n_chunk=4),
-        names=("sky", "beam", "tsys", "receiver", "gain", "noise", "adc", "backend"),
+        names=("t_ant", "receiver", "gain", "noise", "adc", "backend"),
     )
 
 

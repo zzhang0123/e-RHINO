@@ -19,6 +19,7 @@ from dirt import Coordinates, Environment, State
 from dirt.inference import GradientCalibrator, build_forward_fn
 from dirt.radio import (
     ADCOperator,
+    AtmosphericEmissionOperator,
     BackendOperator,
     BeamOperator,
     CWCalibrationOperator,
@@ -34,7 +35,6 @@ from dirt.radio import (
     PointSourceOperator,
     ReceiverOperator,
     RFIOperator,
-    SystemTemperatureOperator,
     assemble,
 )
 
@@ -63,7 +63,7 @@ twin = assemble(
     BeamOperator(solid_angle=jnp.array(0.8)),
     GroundPickupOperator(coupling=jnp.array(0.01),             # post-beam effective
                          t_ground=jnp.array(300.0)),
-    SystemTemperatureOperator(t_sys=jnp.array(150.0)),         # sky-side (atmosphere)
+    AtmosphericEmissionOperator(t_atm=jnp.array(150.0)),       # t_ant_sum branch
     NoiseWaveOperator(t_unc=jnp.array(1.0), t_cos=jnp.array(0.5),
                       t_sin=jnp.array(0.2), t_zero=jnp.array(2.0),
                       gamma_re=jnp.array(0.05), gamma_im=jnp.array(0.02)),

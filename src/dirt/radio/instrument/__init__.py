@@ -5,7 +5,7 @@ Typical ordering in a forward model (RHINO paper Eq. 6:
 bandpass and gain so it tracks gain drift; the antenna/cal-load switch sits
 between the sky-side temperatures and the receiver terms)::
 
-    Beam -> SystemTemperature(sky-side) -> [switch <- CalLoad] -> NoiseWave
+    Beam -> (+ sky-side temperatures) -> [switch <- CalLoad] -> NoiseWave
          -> CWCalibration -> Receiver(bandpass) -> Gain -> Noise -> EMI -> ADC
 """
 
@@ -20,7 +20,7 @@ from dirt.radio.instrument.emi import EMIOperator
 from dirt.radio.instrument.gain import GainOperator
 from dirt.radio.instrument.noise import NoiseOperator
 from dirt.radio.instrument.noise_wave import NoiseWaveOperator
-from dirt.radio.instrument.receiver import ReceiverOperator, SystemTemperatureOperator
+from dirt.radio.instrument.receiver import ReceiverOperator
 
 __all__ = [
     "ADCOperator",
@@ -33,5 +33,4 @@ __all__ = [
     "NoiseOperator",
     "NoiseWaveOperator",
     "ReceiverOperator",
-    "SystemTemperatureOperator",
 ]

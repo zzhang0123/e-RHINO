@@ -33,7 +33,9 @@ that will replace the body. Graph topology and assembly rules: see
 | `IonosphereOperator` *(P)* | `ionosphere` | chromatic ~ν⁻² distortion of the astro sum | `delta` |
 | `RFIOperator` *(P)* | `rfi_field` | sparse random spikes (pre-beam field), PRNG-driven | `amplitude` |
 | `GroundPickupOperator` *(P)* | `ground_pickup` | effective ground-spill temperature, coupled to `env.temperature` | `coupling`, `t_ground` |
+| `AtmosphericEmissionOperator` *(P)* | `atmosphere` | beam-averaged atmospheric emission (`t_ant_sum` branch) | `t_atm` |
 | — | `ground_field` | *reserved leaf*: ground as a pre-beam field to convolve | — |
+| — | `atmosphere_field` | *reserved transform*: radiative transfer on the astro sky, pre-beam | — |
 | — | `t_sys_extra` | *reserved leaf (multi-instance)*: generic effective T_sys entry | — |
 
 ## Instrument (trunk order = graph order)
@@ -41,7 +43,6 @@ that will replace the body. Graph topology and assembly rules: see
 | Operator | Node | Role | Differentiable parameters |
 |---|---|---|---|
 | `BeamOperator` *(P)* | `beam` | shared chromatic beam — the single marginalisation target | `solid_angle` |
-| `SystemTemperatureOperator` *(P)* | `atmosphere` | sky-side additive temperature (atmosphere/spill) | `t_sys` |
 | `CalLoadOperator` *(P)* | `cal_loads` | switched calibration load (via `receiver_input` selector) | `t_load` |
 | `NoiseWaveOperator` *(P)* | `noise_wave` | reflection loss + noise-wave T terms (linear in `t_nw` — the GCR structure) | `t_unc`, `t_cos`, `t_sin`, `t_zero`, `gamma_re`, `gamma_im` |
 | `CWCalibrationOperator` *(P)* | `cw_tone` | CW tone injected before bandpass/gain (tracks gain drift) | `amplitude` |

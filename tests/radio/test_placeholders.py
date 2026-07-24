@@ -13,13 +13,13 @@ from dirt import AbstractOperator, State
 from dirt.core.errors import StateValidationError
 from dirt.radio import (
     ADCOperator,
+    AtmosphericEmissionOperator,
     BackendOperator,
     BeamOperator,
     GainOperator,
     NoiseOperator,
     ReceiverOperator,
     SkyOperator,
-    SystemTemperatureOperator,
 )
 
 # Mirrors tests/conftest.py fixture dimensions.
@@ -36,7 +36,7 @@ def data_state(template_state):
 ALL_OPERATOR_CLASSES = [
     SkyOperator,
     BeamOperator,
-    SystemTemperatureOperator,
+    AtmosphericEmissionOperator,
     ReceiverOperator,
     GainOperator,
     NoiseOperator,
@@ -68,14 +68,21 @@ class TestSimpleArithmetic:
         out = BeamOperator(solid_angle=jnp.array(0.5))(data_state)
         assert jnp.all(out.data == 5.0)
 
-    def test_tsys_adds_scalar(self, data_state):
-        out = SystemTemperatureOperator(t_sys=jnp.array(150.0))(data_state)
-        assert jnp.all(out.data == 160.0)
+    def test_atmosphere_emits_scalar(self, template_state):
+        # Source-type: a t_ant_sum branch producing its own contribution.
+        out = AtmosphericEmissionOperator(t_atm=jnp.array(150.0))(template_state)
+        assert out.data.shape == (N_TIME, N_FREQ)
+        assert jnp.all(out.data == 150.0)
 
-    def test_tsys_adds_per_freq(self, data_state):
-        t_sys = jnp.arange(float(N_FREQ))
-        out = SystemTemperatureOperator(t_sys=t_sys)(data_state)
-        assert jnp.array_equal(out.data[0], 10.0 + t_sys)
+    def test_atmosphere_emits_per_freq(self, template_state):
+        t_atm = jnp.arange(float(N_FREQ))
+        out = AtmosphericEmissionOperator(t_atm=t_atm)(template_state)
+        assert out.data.shape == (N_TIME, N_FREQ)
+        assert jnp.array_equal(out.data[0], t_atm)
+
+    def test_atmosphere_channel_mismatch_raises(self, template_state):
+        with pytest.raises(StateValidationError, match="t_atm"):
+            AtmosphericEmissionOperator(t_atm=jnp.ones(N_FREQ + 1))(template_state)
 
     def test_receiver_applies_bandpass(self, data_state):
         bandpass = jnp.arange(1.0, N_FREQ + 1.0)

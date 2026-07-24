@@ -11,13 +11,13 @@ and compiles it to the equivalent ``Pipeline``/``SumOperator`` nesting::
     print(twin)                # lit nodes + skipped-as-identity nodes
     print(twin.to_mermaid())   # lit/dim signal-path rendering
 
-Topology (v1.1; sum junctions marked ``(+)``)::
+Topology (v1.2; sum junctions marked ``(+)``)::
 
     global_signal | foregrounds | point_sources | uniform_sky
-        -> (+) astro_sum -> ionosphere ------------\\
-    ground_field* | rfi_field --------------------> (+) field_sum -> beam --\\
-    observed_astro_sky | ground_pickup | t_sys_extra* -----------------------> (+) t_ant_sum
-        -> atmosphere -> (SW) receiver_input <- cal_loads
+        -> (+) astro_sum -> ionosphere -> atmosphere_field* --\\
+    ground_field* | rfi_field ----------------------> (+) field_sum -> beam --\\
+    observed_astro_sky | ground_pickup | t_sys_extra* | atmosphere -------------> (+) t_ant_sum
+        -> (SW) receiver_input <- cal_loads
         -> noise_wave -> cw_tone -> bandpass -> gain
         -> noise -> emi -> adc
         -> flagging -> averaging -> apply_cal -> filters      [processing segment]
@@ -26,7 +26,11 @@ Equivalent-entry leaves (the ``*`` nodes are reserved placeholders with no
 shipped operator yet): the same physical effect may enter at different
 stages in different forms — ground spill either as a *field* before the beam
 (``ground_field``, to be convolved) or as an *effective temperature* after it
-(``ground_pickup`` / generic ``t_sys_extra``); the whole astro path either as
+(``ground_pickup`` / generic ``t_sys_extra``); the atmosphere either as
+strict radiative transfer on the astro branch before the beam
+(``atmosphere_field``, reserved — opacity acts on the astro sky alone, never
+on ground pickup) or as a beam-averaged additive emission temperature in the
+antenna-temperature sum (``atmosphere``); the whole astro path either as
 component fields through the shared ``beam`` node or pre-convolved via
 ``observed_astro_sky`` (``SkySourceOperator``). Provide whichever form you
 have; the graph keeps both entrances.
@@ -59,6 +63,9 @@ RADIO_GRAPH = register_graph(
             "uniform_sky": NodeSpec(_S, "uniform sky (simplest placeholder)"),
             "astro_sum": NodeSpec(_J, "astrophysical sum"),
             "ionosphere": NodeSpec(_T, "chromatic distortion of the astro sky"),
+            "atmosphere_field": NodeSpec(
+                _T, "atmospheric radiative transfer on the astro sky", reserved=True
+            ),
             "ground_field": NodeSpec(_S, "ground as pre-beam field", reserved=True),
             "rfi_field": NodeSpec(_S, "RFI entering through sidelobes"),
             "field_sum": NodeSpec(_J, "pre-beam field sum"),
@@ -68,8 +75,8 @@ RADIO_GRAPH = register_graph(
             "t_sys_extra": NodeSpec(
                 _S, "generic effective T_sys contribution", many=True, reserved=True
             ),
+            "atmosphere": NodeSpec(_S, "beam-averaged atmospheric emission"),
             "t_ant_sum": NodeSpec(_J, "antenna-temperature assembly"),
-            "atmosphere": NodeSpec(_T, "sky-side additive temperature"),
             "cal_loads": NodeSpec(_S, "switched calibration loads"),
             "receiver_input": NodeSpec(
                 "selector", "antenna/load switch (cycle in coords.extra)"
@@ -95,7 +102,8 @@ RADIO_GRAPH = register_graph(
             ("point_sources", "astro_sum"),
             ("uniform_sky", "astro_sum"),
             ("astro_sum", "ionosphere"),
-            ("ionosphere", "field_sum"),
+            ("ionosphere", "atmosphere_field"),
+            ("atmosphere_field", "field_sum"),
             ("ground_field", "field_sum"),
             ("rfi_field", "field_sum"),
             ("field_sum", "beam"),
@@ -103,8 +111,8 @@ RADIO_GRAPH = register_graph(
             ("observed_astro_sky", "t_ant_sum"),
             ("ground_pickup", "t_ant_sum"),
             ("t_sys_extra", "t_ant_sum"),
-            ("t_ant_sum", "atmosphere"),
-            ("atmosphere", "receiver_input"),
+            ("atmosphere", "t_ant_sum"),
+            ("t_ant_sum", "receiver_input"),
             ("cal_loads", "receiver_input"),
             ("receiver_input", "noise_wave"),
             ("noise_wave", "cw_tone"),

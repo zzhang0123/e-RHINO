@@ -117,7 +117,7 @@ parameter) — how switched calibration loads replace the antenna signal.
 
 Explicit composition is always available — but composition is *implicit in
 the signal path*. The canonical single-antenna graph
-(`dirt.radio.RADIO_GRAPH`, 28 nodes) knows how every element connects, so
+(`dirt.radio.RADIO_GRAPH`, 29 nodes) knows how every element connects, so
 you provide a **set** of operators and `assemble` compiles the sub-path they
 induce:
 

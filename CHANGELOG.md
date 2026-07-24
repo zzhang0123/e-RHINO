@@ -2,6 +2,18 @@
 
 ## 0.1.0 (unreleased)
 
+### Graph v1.2: atmosphere as an equivalent-entry pair (D13)
+
+The `atmosphere` node moved from a trunk transform (between `t_ant_sum` and
+the receiver-input switch) to a **source leaf** of `t_ant_sum`, parallel to
+`ground_pickup`/`t_sys_extra`: `SystemTemperatureOperator` (transform,
+`t_sys`) is replaced by `AtmosphericEmissionOperator` (source, `t_atm`, in
+`dirt.radio.environment`). A reserved `atmosphere_field` transform on the
+astro branch (between `ionosphere` and `field_sum`) marks the strict
+radiative-transfer entrance — opacity acts on the astro sky alone, never on
+ground pickup. Numerically identical for the additive placeholder; see
+DESIGN.md D13 for the rationale.
+
 ### Renamed: e-RHINO -> DIRT (Differentiable Instrument Response Twin)
 
 The framework applies to any single-antenna radio telescope (horns, dipoles,

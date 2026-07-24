@@ -121,7 +121,7 @@ forecasts (`fisher_information`), and neural-surrogate training — see the
 - **Core** — `State` (immutable pytree context), `Pipeline` / `SumOperator` /
   `SelectOperator` composition, `SignalGraph` + `assemble` (graph-guided
   auto-composition with lit/dim mermaid & HTML rendering).
-- **Radio** — a 28-node canonical signal-path graph covering every element of
+- **Radio** — a 29-node canonical signal-path graph covering every element of
   a single-antenna experiment: sky components, ionosphere, RFI, shared
   chromatic beam, noise-wave/reflection terms, CW tone and switched
   calibration loads, gain, thermal noise, EMI, ADC, flagging, averaging —
