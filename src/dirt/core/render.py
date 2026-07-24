@@ -1,13 +1,15 @@
-"""Standalone HTML rendering of signal-path graphs with lit/dim styling.
+"""Standalone HTML/SVG rendering of signal-path graphs with lit/dim styling.
 
-Generates a self-contained page (no external assets) showing the full
-template with the provided nodes lit, traversed-as-identity nodes half-lit
-("wire"), and everything else dimmed — the signal-path view of what an
-assembly simulates. Produced from Python so it always reflects the actual
-template; write it to a file and open it in a browser::
+Shows the full template with the provided nodes lit, traversed-as-identity
+nodes half-lit ("wire"), and everything else dimmed — the signal-path view
+of what an assembly simulates. Produced from Python so it always reflects
+the actual template. Two output forms, both self-contained (no external
+assets — the opacity classes are styled inside the SVG itself):
 
-    html = assembly.to_html()
-    pathlib.Path("signal_path.html").write_text(html)
+- :func:`signal_path_html` — a full page; write it to a file and open it
+  in a browser: ``pathlib.Path("signal_path.html").write_text(assembly.to_html())``
+- :func:`signal_path_svg` — just the ``<svg>`` element, for embedding in
+  documentation or notebooks (``assembly.to_svg()``).
 """
 
 import html as _html
@@ -31,14 +33,14 @@ body { font-family: system-ui, sans-serif; background: #faf9f5; color: #2c2c2a;
        margin: 24px; }
 h1 { font-size: 18px; font-weight: 600; }
 p.legend { font-size: 13px; color: #5f5e5a; }
-.lit { opacity: 1; }
-.wire { opacity: 0.55; }
-.dim { opacity: 0.22; }
 @media (prefers-color-scheme: dark) {
   body { background: #1f1e1b; color: #d3d1c7; }
   p.legend { color: #b4b2a9; }
 }
 """
+
+# Inside the SVG so the rendering survives standalone embedding (<img>, docs).
+_SVG_STYLE = ".lit{opacity:1}.wire{opacity:.55}.dim{opacity:.22}"
 
 
 def _layers(graph) -> dict[str, int]:
@@ -56,13 +58,17 @@ def _layers(graph) -> dict[str, int]:
     return layer
 
 
-def signal_path_html(
+def signal_path_svg(
     graph,
     lit: Iterable[str] = (),
     skipped: Iterable[str] = (),
     title: str | None = None,
 ) -> str:
-    """Render ``graph`` as a standalone HTML page with lit/dim signal-path styling."""
+    """Render ``graph`` as a self-contained ``<svg>`` element (lit/dim styling).
+
+    The opacity classes are styled inside the SVG, so the result embeds
+    anywhere a plain image does — documentation pages, notebooks, ``<img>``.
+    """
     # Deferred import: graph.py calls into this module from a method body, so a
     # top-level import here would merely be redundant, not cyclic — kept local
     # to keep render.py importable standalone.
@@ -114,6 +120,7 @@ def signal_path_html(
             )
 
     parts: list[str] = []
+    parts.append(f"<style>{_SVG_STYLE}</style>")
     parts.append(
         '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" '
         'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
@@ -159,15 +166,29 @@ def signal_path_html(
                 f'dominant-baseline="central" font-size="12.5" fill="{text}">{label}</text></g>'
             )
 
+    label = _html.escape(title or f"Signal path: {graph.name}")
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" role="img" aria-label="{label}">'
+        f'{"".join(parts)}</svg>'
+    )
+
+
+def signal_path_html(
+    graph,
+    lit: Iterable[str] = (),
+    skipped: Iterable[str] = (),
+    title: str | None = None,
+) -> str:
+    """Render ``graph`` as a standalone HTML page with lit/dim signal-path styling."""
     page_title = _html.escape(title or f"Signal path: {graph.name}")
-    lit_line = _html.escape(", ".join(sorted(lit_set)) or "none")
+    lit_line = _html.escape(", ".join(sorted(set(lit))) or "none")
+    svg = signal_path_svg(graph, lit=lit, skipped=skipped, title=title)
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
         f"<title>{page_title}</title><style>{_STYLE}</style></head><body>"
         f"<h1>{page_title}</h1>"
         f"<p class='legend'>lit = provided operators ({lit_line}); half-lit = "
         "traversed as identity; dashed = reserved placeholder leaves.</p>"
-        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" '
-        f'role="img" aria-label="{page_title}">{"".join(parts)}</svg>'
-        "</body></html>"
+        f"{svg}</body></html>"
     )

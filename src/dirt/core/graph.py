@@ -198,6 +198,17 @@ class SignalGraph:
 
         return signal_path_html(self, lit=lit, skipped=skipped, title=title)
 
+    def to_svg(
+        self,
+        lit: Iterable[str] = (),
+        skipped: Iterable[str] = (),
+        title: str | None = None,
+    ) -> str:
+        """Self-contained ``<svg>`` of the template, for embedding (docs, notebooks)."""
+        from dirt.core.render import signal_path_svg
+
+        return signal_path_svg(self, lit=lit, skipped=skipped, title=title)
+
     def __repr__(self) -> str:
         return f"SignalGraph({self.name!r}, {len(self.nodes)} nodes, {len(self.edges)} edges)"
 
@@ -282,6 +293,12 @@ class Assembly(AbstractOperator):
     def to_html(self, title: str | None = None) -> str:
         """Standalone HTML page: the full graph with this assembly's nodes lit."""
         return get_graph(self.graph_name).to_html(
+            lit=self.lit, skipped=self.skipped, title=title
+        )
+
+    def to_svg(self, title: str | None = None) -> str:
+        """Self-contained ``<svg>`` with this assembly's nodes lit, for embedding."""
+        return get_graph(self.graph_name).to_svg(
             lit=self.lit, skipped=self.skipped, title=title
         )
 

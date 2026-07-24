@@ -183,8 +183,11 @@ provided, half-lit nodes are traversed as identity, everything else is dim:
 ```python
 mermaid_src = twin.to_mermaid()                     # for notebooks / docs
 html_page = twin.to_html()                          # standalone page
+svg = twin.to_svg()                                 # embeddable figure
 # pathlib.Path("signal_path.html").write_text(html_page)
 ```
+
+Rendered examples live on [the signal-path page](signal-path.md#lit-and-dim-what-an-assembly-simulates).
 
 ## 6. Sky engine
 

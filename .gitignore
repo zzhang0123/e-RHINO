@@ -15,6 +15,7 @@ uv.lock
 # Docs build
 docs/_build/
 docs/signal-path.md
+docs/signal-path-*.svg
 
 # Tooling caches
 .pytest_cache/

@@ -74,7 +74,7 @@ that will replace the body. Graph topology and assembly rules: see
 | `SelectOperator` | per-time-sample branch selection via `coords.extra[switch_key]` |
 | `LambdaOperator` | wrap a pure function (`on_data` lifts array→array) |
 | `SnapshotOperator` | zero-copy raw-data snapshot into `aux` |
-| `Assembly` | graph-assembled operator: node-id access, `replace_node`, `to_mermaid`/`to_html` |
+| `Assembly` | graph-assembled operator: node-id access, `replace_node`, `to_mermaid`/`to_html`/`to_svg` |
 
 ## Inference layer
 

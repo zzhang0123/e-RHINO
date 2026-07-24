@@ -2,6 +2,14 @@
 
 ## 0.1.0 (unreleased)
 
+### Rendering: embeddable SVG + documented lit/dim examples
+
+`Assembly.to_svg()` / `SignalGraph.to_svg()` return a self-contained
+`<svg>` (opacity classes styled inside the figure), so lit/dim signal-path
+renders embed anywhere a plain image does. The docs signal-path page now
+shows two real example renders, generated from live assemblies at build
+time.
+
 ### Graph v1.2: atmosphere as an equivalent-entry pair (D13)
 
 The `atmosphere` node moved from a trunk transform (between `t_ant_sum` and

@@ -283,3 +283,13 @@ class TestRendering:
         html = RADIO_GRAPH.to_html(title='Run "A" & <B>')
         assert "<B>" not in html
         assert "&lt;B&gt;" in html and "&quot;A&quot;" in html or "&#x27;" in html
+
+    def test_svg_render_is_self_contained(self):
+        o = ops()
+        asm = assemble(o["gs"], o["gn"])
+        svg = asm.to_svg()
+        assert svg.startswith("<svg") and svg.endswith("</svg>")
+        assert "<body" not in svg and "<html" not in svg
+        # opacity classes are styled INSIDE the svg (survives <img> embedding)
+        assert "<style>" in svg and ".dim{opacity:.22}" in svg
+        assert svg in asm.to_html()  # the page embeds the same figure
