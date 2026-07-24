@@ -51,6 +51,7 @@ class NativeLimTODProjector(AbstractSkyProjector):
 
     Coordinate conventions (degrees, per the RHINO family — identical to
     :class:`~dirt.radio.sky.projection.LimTODProjector`):
+
         * ``coords.extra["lst_deg"]`` — ``(n_time,)`` local sidereal times.
         * ``coords.pointing`` — ``(n_time, 2)`` azimuth/elevation [deg].
         * ``coords.extra["selfrot_deg"]`` — optional ``(n_time,)``

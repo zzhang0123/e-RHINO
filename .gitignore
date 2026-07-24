@@ -12,6 +12,10 @@ venv/
 # uv
 uv.lock
 
+# Docs build
+docs/_build/
+docs/signal-path.md
+
 # Tooling caches
 .pytest_cache/
 .ruff_cache/

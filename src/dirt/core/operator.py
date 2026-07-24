@@ -29,13 +29,15 @@ from dirt.core.state import State
 class AbstractOperator(eqx.Module):
     """A pure, differentiable transformation ``State -> State``.
 
-    Class attributes (declarative contract, not enforced yet):
-        requires: dotted State paths this operator reads,
-            e.g. ``("data", "coords.freq", "key")``.
+    Attributes:
+        requires: declarative contract (not enforced yet) — dotted State
+            paths this operator reads, e.g. ``("data", "coords.freq", "key")``.
         provides: dotted State paths this operator writes, e.g. ``("data",)``.
+        graph_node: home node on a SignalGraph template (assembly); ``None``
+            means "place explicitly with At(node, op)".
 
-    These are documentation today and the hook for a future
-    ``pipeline.validate()`` static checker.
+    The requires/provides tuples are documentation today and the hook for a
+    future ``pipeline.validate()`` static checker.
 
     Rules for implementors:
         * Never mutate the input state — return ``state.replace(...)`` /
@@ -49,9 +51,9 @@ class AbstractOperator(eqx.Module):
     requires: ClassVar[tuple[str, ...]] = ()
     provides: ClassVar[tuple[str, ...]] = ()
 
-    #: Home node on a SignalGraph template (graph-guided assembly). Resolved
-    #: through the MRO, so subclasses inherit their base's slot; ``None``
-    #: means "not placeable without an explicit At(node, op) wrapper".
+    # Home node on a SignalGraph template (graph-guided assembly); resolved
+    # through the MRO so subclasses inherit their base's slot. Documented in
+    # the class docstring's Attributes section.
     graph_node: ClassVar[str | None] = None
 
     @abc.abstractmethod

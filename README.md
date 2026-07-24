@@ -135,6 +135,10 @@ forecasts (`fisher_information`), and neural-surrogate training — see the
 
 ## Documentation
 
+Rendered docs: **[dirt-telescope.readthedocs.io](https://dirt-telescope.readthedocs.io)**
+(Sphinx + furo; build locally with
+`uv run sphinx-build -b html docs docs/_build/html`).
+
 | Document | What it covers |
 |---|---|
 | [Guided tour](docs/tour.md) | The complete API, top to bottom, with runnable snippets |

@@ -1,6 +1,7 @@
 """System temperature and receiver chain — PLACEHOLDERS.
 
 Real physics to come (generic single-antenna receiver model):
+
 - ``SystemTemperatureOperator``: *sky-side* additive temperatures —
   atmosphere, ground spill-over — which enter *before* the antenna/receiver
   reflection terms and therefore see the ``(1-|Gamma|^2)`` loss. The receiver

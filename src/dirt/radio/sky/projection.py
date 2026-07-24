@@ -150,6 +150,7 @@ class LimTODProjector(AbstractSkyProjector):
     to be importable.
 
     Coordinate conventions (degrees, per the RHINO family):
+
         * ``coords.extra["lst_deg"]`` — ``(n_time,)`` local sidereal times.
         * ``coords.pointing`` — ``(n_time, 2)`` azimuth/elevation [deg].
         * ``coords.extra["selfrot_deg"]`` — optional ``(n_time,)`` self-rotation

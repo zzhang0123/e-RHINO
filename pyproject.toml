@@ -25,6 +25,13 @@ classifiers = [
 
 [project.optional-dependencies]
 numpyro = ["numpyro"]
+docs = [
+    "sphinx>=7",
+    "myst-parser",
+    "furo",
+    "sphinx-copybutton",
+    "sphinxcontrib-mermaid",
+]
 
 [project.urls]
 Repository = "https://github.com/zzhang0123/dirt-telescope"

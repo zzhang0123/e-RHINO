@@ -2,8 +2,9 @@
 
 The design record: **why** the framework is shaped the way it is, as twelve
 numbered decisions (D1–D12), each with the constraint that forced it. New
-here? Read the [README](README.md) for the philosophy and the
-[guided tour](docs/tour.md) for the API — this document is for contributors
+here? Read the [README](https://github.com/zzhang0123/dirt-telescope#readme) for
+the philosophy and the [guided tour](https://github.com/zzhang0123/dirt-telescope/blob/main/docs/tour.md)
+for the API — this document is for contributors
 and for future-us wondering "why is it like this".
 
 The goal throughout is a **reusable framework**, not a one-off simulator:
