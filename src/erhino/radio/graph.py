@@ -17,7 +17,8 @@ Topology (v1.1; sum junctions marked ``(+)``)::
         -> (+) astro_sum -> ionosphere ------------\\
     ground_field* | rfi_field --------------------> (+) field_sum -> beam --\\
     observed_astro_sky | ground_pickup | t_sys_extra* -----------------------> (+) t_ant_sum
-        -> atmosphere -> noise_wave -> cw_tone -> bandpass -> gain
+        -> atmosphere -> (SW) receiver_input <- cal_loads
+        -> noise_wave -> cw_tone -> bandpass -> gain
         -> noise -> emi -> adc
         -> flagging -> averaging -> apply_cal -> filters      [processing segment]
 
@@ -30,10 +31,12 @@ component fields through the shared ``beam`` node or pre-convolved via
 ``observed_astro_sky`` (``SkySourceOperator``). Provide whichever form you
 have; the graph keeps both entrances.
 
-Deliberately not wired yet: switched calibration loads (elements taxonomy
-"calibration signals ... switched in and out on a pre-defined cycle") need a
-*selector* junction kind that REPLACES the antenna branch on the switching
-cycle — a future SignalGraph extension, tracked in DESIGN.md.
+Switched calibration loads (elements taxonomy "calibration signals ...
+switched in and out on a pre-defined cycle") enter through the
+``receiver_input`` *selector* node: with only the antenna chain provided it
+passes through; provide ``CalLoadOperator`` too and each time sample takes
+the branch chosen by ``coords.extra["receiver_input"]`` (0 = antenna,
+1 = load — the edge declaration order).
 
 The forward physical chain ends at ``adc`` (the raw waterfall); the
 processing segment (flagging/averaging/apply_cal/filters) is data-side and
@@ -67,6 +70,10 @@ RADIO_GRAPH = register_graph(
             ),
             "t_ant_sum": NodeSpec(_J, "antenna-temperature assembly"),
             "atmosphere": NodeSpec(_T, "sky-side additive temperature"),
+            "cal_loads": NodeSpec(_S, "switched calibration loads"),
+            "receiver_input": NodeSpec(
+                "selector", "antenna/load switch (cycle in coords.extra)"
+            ),
             "noise_wave": NodeSpec(_T, "reflection loss + noise-wave T terms"),
             "cw_tone": NodeSpec(_T, "CW calibration tone (before bandpass/gain)"),
             "bandpass": NodeSpec(_T, "receiver bandpass"),
@@ -97,7 +104,9 @@ RADIO_GRAPH = register_graph(
             ("ground_pickup", "t_ant_sum"),
             ("t_sys_extra", "t_ant_sum"),
             ("t_ant_sum", "atmosphere"),
-            ("atmosphere", "noise_wave"),
+            ("atmosphere", "receiver_input"),
+            ("cal_loads", "receiver_input"),
+            ("receiver_input", "noise_wave"),
             ("noise_wave", "cw_tone"),
             ("cw_tone", "bandpass"),
             ("bandpass", "gain"),

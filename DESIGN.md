@@ -174,10 +174,30 @@ the astro path as component fields through `beam` or pre-convolved via
 single differentiable object (the #1 marginalisation target) rather than
 fragmenting into per-operator copies.
 
-Deferred: switched calibration loads need a *selector* junction kind
-(replaces the antenna branch on the switching cycle) — a future SignalGraph
-extension; region-coverage (one operator spanning several nodes) is not yet
-modeled — `observed_astro_sky` covers today's case without it.
+**Selector nodes (switched signal paths)**: the fourth node kind. A
+`selector` combines its live branches per time sample instead of summing —
+`data[t] = branch[switch[t]][t]` — with the switching cycle read from
+`coords.extra[<node_id>]` (observation configuration, not an operator
+parameter; values index the branches in edge declaration order). Materializes
+as `SelectOperator` (same branch semantics as Sum: data stripped, per-branch
+subkeys, context discarded); with one live branch it passes through, so the
+canonical `receiver_input` selector costs nothing when no `CalLoadOperator`
+is provided. This models the elements taxonomy's switched calibration loads:
+the load REPLACES the antenna signal on the cycle.
+
+**Region coverage**: an operator may claim a *contiguous path* of template
+nodes (`graph_node`/`At` with a node tuple) and implement all of those stages
+at once. Regions are atomic — endpoints must not be junctions/selectors,
+claims are pairwise disjoint, and a live branch feeding a covered interior
+node is an assembly error. A region is addressed by its LAST covered node id.
+`observed_astro_sky` remains the preferred equivalent-entry route where one
+exists; regions serve genuinely fused implementations.
+
+**HTML rendering**: `SignalGraph.to_html()` / `Assembly.to_html()`
+(`core/render.py`) generate a standalone page of the full template with lit /
+half-lit ("wire") / dim styling and dashed reserved leaves — the signal-path
+view of exactly what an assembly simulates, produced from Python so it always
+reflects the actual graph (`examples/render_signal_path.py`).
 
 ## Element taxonomy → module map
 

@@ -58,6 +58,51 @@ class CWCalibrationOperator(AbstractOperator):
         return state.with_data(state.data.at[:, channel].add(self.amplitude))
 
 
+class CalLoadOperator(AbstractOperator):
+    """Switched calibration load (PLACEHOLDER).
+
+    Elements: "Calibration signals, which are switched in and out of the
+    signal path on some pre-defined cycle." The load REPLACES the antenna
+    signal on the switching cycle — modeled by the ``receiver_input``
+    *selector* node of the canonical graph: provide this operator alongside
+    the antenna chain and put the switching cycle in
+    ``coords.extra["receiver_input"]`` (0 = antenna, 1 = load, in the
+    graph's edge order).
+
+    Real physics to come (GCR draft): warm/hot loads with their own
+    reflection coefficients and physical-temperature telemetry.
+
+    Attributes:
+        t_load: load temperature [K] — differentiable scalar or ``(n_freq,)``.
+    """
+
+    requires: ClassVar[tuple[str, ...]] = ("coords.time", "coords.freq")
+    provides: ClassVar[tuple[str, ...]] = ("data",)
+    graph_node: ClassVar[str] = "cal_loads"
+
+    t_load: jax.Array
+
+    def __call__(self, state: State) -> State:
+        if state.coords is None or state.coords.time is None or state.coords.freq is None:
+            raise StateValidationError(
+                "CalLoadOperator requires state.coords with time and freq axes."
+            )
+        n_time = state.coords.time.shape[0]
+        n_freq = state.coords.freq.shape[0]
+        if self.t_load.ndim == 0:
+            return state.with_data(self.t_load * jnp.ones((n_time, n_freq)))
+        if self.t_load.ndim == 1:
+            if self.t_load.shape[0] != n_freq:
+                raise StateValidationError(
+                    f"t_load has {self.t_load.shape[0]} channels but coords.freq "
+                    f"has {n_freq}."
+                )
+            return state.with_data(jnp.ones((n_time, 1)) * self.t_load[None, :])
+        raise StateValidationError(
+            f"t_load must be scalar or (n_freq,), got ndim={self.t_load.ndim}."
+        )
+
+
 class ApplyCalibrationOperator(AbstractOperator):
     """Apply an inferred gain solution: ``data / gain`` (PLACEHOLDER).
 

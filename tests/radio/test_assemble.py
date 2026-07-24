@@ -146,6 +146,76 @@ class TestCanonicalTopology:
         assert out.data.shape == (N_TIME, N_FREQ)
 
 
+class TestSwitchedCalibration:
+    def test_selector_passes_through_without_loads(self, template_state):
+        """Backward compatible: no cal_loads -> receiver_input is identity."""
+        o = ops()
+        asm = assemble(SkyOperator(amplitude=jnp.array(100.0)), o["gn"])
+        assert "receiver_input" in asm.skipped
+        assert jnp.allclose(asm(template_state).data, 110.0)
+
+    def test_switching_cycle_selects_antenna_or_load(self, template_state):
+        from erhino import SelectOperator
+        from erhino.radio import CalLoadOperator
+
+        switch = jnp.array([0, 1, 0, 0, 1, 0, 0, 1])
+        state = template_state.replace(
+            coords=template_state.coords.replace(
+                extra={"receiver_input": switch}
+            )
+        )
+        asm = assemble(
+            SkyOperator(amplitude=jnp.array(100.0)),
+            CalLoadOperator(t_load=jnp.array(300.0)),
+        )
+        assert isinstance(asm.operator, SelectOperator)
+        # branch labels: first live node of each branch, edge order fixed
+        assert asm.operator.names == ("uniform_sky", "cal_loads")
+        assert asm.operator.switch_key == "receiver_input"
+        out = asm(state)
+        expected = jnp.where(switch[:, None] == 0, 100.0, 300.0)
+        assert jnp.allclose(out.data, expected)
+
+    def test_cal_load_shapes(self, template_state):
+        """Regression: per-frequency t_load broadcasts along freq, with validation."""
+        from erhino.core.errors import StateValidationError
+        from erhino.radio import CalLoadOperator
+
+        t_load = jnp.arange(1.0, N_FREQ + 1.0)
+        out = CalLoadOperator(t_load=t_load)(template_state)
+        assert jnp.array_equal(out.data[3], t_load)  # every time row = spectrum
+        with pytest.raises(StateValidationError, match="channels"):
+            CalLoadOperator(t_load=jnp.ones(N_FREQ + 1))(template_state)
+        with pytest.raises(StateValidationError, match="ndim"):
+            CalLoadOperator(t_load=jnp.ones((2, 2)))(template_state)
+
+    def test_load_only_observation(self, template_state):
+        """Only the load provided: selector passes it through (all samples load)."""
+        from erhino.radio import CalLoadOperator
+
+        asm = assemble(CalLoadOperator(t_load=jnp.array(300.0)))
+        assert jnp.allclose(asm(template_state).data, 300.0)
+
+    def test_switching_is_differentiable_wrt_both_branches(self, template_state):
+        from erhino.radio import CalLoadOperator
+
+        switch = jnp.array([0, 1] * 4)
+        state = template_state.replace(
+            coords=template_state.coords.replace(extra={"receiver_input": switch})
+        )
+        asm = assemble(
+            SkyOperator(amplitude=jnp.array(100.0)),
+            CalLoadOperator(t_load=jnp.array(300.0)),
+        )
+
+        def loss(a):
+            return jnp.sum(a(state).data)
+
+        g = eqx.filter_grad(loss)(asm)
+        assert jnp.isfinite(g["uniform_sky"].amplitude) and g["uniform_sky"].amplitude != 0
+        assert jnp.isfinite(g["cal_loads"].t_load) and g["cal_loads"].t_load != 0
+
+
 class TestRegistryCompleteness:
     def test_every_concrete_operator_is_placeable(self):
         """Every exported radio operator class has a valid graph_node."""
@@ -191,3 +261,20 @@ class TestRendering:
         assert "class gain lit" in mm
         assert "class ionosphere wire" in mm  # traversed as identity
         assert "class flagging dim" in mm
+
+    def test_html_render(self):
+        o = ops()
+        asm = assemble(o["gs"], o["gn"])
+        html = asm.to_html()
+        assert html.startswith("<!doctype html>")
+        assert "<svg" in html and "global signal" in html
+        assert 'class="lit"' in html and 'class="dim"' in html and 'class="wire"' in html
+        assert "stroke-dasharray" in html  # reserved leaves drawn dashed
+        # every node of the template appears
+        for nid in RADIO_GRAPH.nodes:
+            assert nid.replace("_", " ") in html or nid in html
+
+    def test_html_escapes_title(self):
+        html = RADIO_GRAPH.to_html(title='Run "A" & <B>')
+        assert "<B>" not in html
+        assert "&lt;B&gt;" in html and "&quot;A&quot;" in html or "&#x27;" in html

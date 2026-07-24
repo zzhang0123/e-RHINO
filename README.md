@@ -62,8 +62,15 @@ part = assemble(SkyOperator(...), IonosphereOperator(...), BeamOperator(...))
 #  ≡ Pipeline(sky, ionosphere, beam)                      — beam-convolved sky only
 
 print(part)               # lit nodes + skipped-as-identity nodes
-print(part.to_mermaid())  # lit/dim signal-path rendering
+print(part.to_mermaid())  # lit/dim signal-path rendering (mermaid)
+open("signal_path.html", "w").write(part.to_html())   # standalone lit/dim page
 ```
+
+Switched calibration is a first-class graph concept: provide
+`CalLoadOperator` alongside the antenna chain and the `receiver_input`
+*selector* node switches between them per time sample, driven by the cycle
+in `coords.extra["receiver_input"]` (0 = antenna, 1 = load). Without a load
+the selector passes through at zero cost.
 
 The same physical effect may enter at different stages in different forms —
 the graph reserves *equivalent-entry leaves* for each (e.g. ground spill as

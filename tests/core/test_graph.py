@@ -126,7 +126,7 @@ class TestResolution:
         assert jnp.array_equal(out.data, jnp.full(3, 2.0))
 
     def test_at_unknown_node(self, graph):
-        with pytest.raises(AssemblyError, match="unknown node"):
+        with pytest.raises(AssemblyError, match="not a node"):
             assemble(graph, At("ghost", SrcA(value=jnp.array(1.0))))
 
     def test_junction_is_not_a_slot(self, graph):
@@ -310,6 +310,85 @@ class TestAssemblyErgonomics:
                 {"a": NodeSpec(S), "j": NodeSpec(J), "t": NodeSpec(T)},
                 [("a", "j"), ("a", "j"), ("j", "t")],
             )
+
+
+class TestRegionCoverage:
+    """One operator covering a contiguous region of the template."""
+
+    def test_region_replaces_its_segment(self, graph):
+        """At(('a','j1','t1'), op): op implements source+sum+transform at once."""
+        region_op = Src(value=jnp.array(6.0))  # pretends to be the whole chain
+        asm = assemble(graph, At(("a", "j1", "t1"), region_op), SrcC(value=jnp.array(4.0)))
+        # region output joins j2 as a sourced branch alongside c
+        assert jnp.array_equal(asm(State()).data, jnp.full(3, 10.0))
+        assert set(("a", "j1", "t1")) <= set(asm.lit)
+
+    def test_region_addressed_by_last_node(self, graph):
+        region_op = Src(value=jnp.array(6.0))
+        asm = assemble(graph, At(("a", "j1", "t1"), region_op))
+        assert asm["t1"] is region_op or asm["t1"].value == 6.0
+
+    def test_live_branch_into_region_interior_rejected(self, graph):
+        """b feeds j1, which is interior to the region -> atomicity error."""
+        with pytest.raises(AssemblyError, match="covered by the region"):
+            assemble(
+                graph,
+                At(("a", "j1", "t1"), Src(value=jnp.array(1.0))),
+                SrcB(value=jnp.array(2.0)),
+            )
+
+    def test_non_contiguous_region_rejected(self, graph):
+        with pytest.raises(AssemblyError, match="contiguous"):
+            assemble(graph, At(("a", "t1"), Src(value=jnp.array(1.0))))
+
+    def test_region_overlap_with_instance_rejected(self, graph):
+        with pytest.raises(AssemblyError, match="disjoint"):
+            assemble(
+                graph,
+                At(("a", "j1", "t1"), Src(value=jnp.array(1.0))),
+                MulT1(factor=jnp.array(2.0)),
+            )
+
+    def test_region_endpoint_on_junction_rejected(self, graph):
+        with pytest.raises(AssemblyError, match="interior"):
+            assemble(graph, At(("a", "j1"), Src(value=jnp.array(1.0))))
+
+    def test_forking_interior_makes_region_unclosed(self):
+        """Regression: a region may not hide a signal that forks out of it."""
+        forked = SignalGraph(
+            "forked",
+            {"a": NodeSpec(S), "x": NodeSpec(T), "y": NodeSpec(T),
+             "z": NodeSpec(T), "j": NodeSpec(J)},
+            [("a", "x"), ("x", "y"), ("x", "z"), ("y", "j"), ("z", "j")],
+        )
+        with pytest.raises(AssemblyError, match="not closed"):
+            assemble(forked, At(("a", "x", "y"), Src(value=jnp.array(1.0))))
+
+    def test_unsourced_region_error_names_region_root(self):
+        """Regression: the culprit in the error is the region's FIRST node."""
+        g = SignalGraph(
+            "chain",
+            {"p": NodeSpec(T), "q": NodeSpec(T), "c": NodeSpec(S),
+             "j": NodeSpec(J), "t": NodeSpec(T)},
+            [("p", "q"), ("q", "j"), ("c", "j"), ("j", "t")],
+        )
+        with pytest.raises(AssemblyError, match="'p'"):
+            assemble(
+                g,
+                At(("p", "q"), Mul(factor=jnp.array(2.0))),
+                At("c", Src(value=jnp.array(1.0))),
+            )
+
+    def test_transform_rooted_region_consumes_upstream(self, graph):
+        """A region starting on a transform chains onto the incoming signal."""
+        region_op = Mul(factor=jnp.array(5.0))  # covers t2..t3 as one unit
+        asm = assemble(
+            graph,
+            SrcA(value=jnp.array(2.0)),
+            At(("t2", "t3"), region_op),
+        )
+        assert jnp.array_equal(asm(State()).data, jnp.full(3, 10.0))
+        assert asm["t3"].factor == 5.0
 
 
 class TestManyNodes:

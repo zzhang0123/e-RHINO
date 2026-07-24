@@ -161,6 +161,133 @@ class TestDataPytreeSemantics:
         assert jnp.array_equal(out.data, jnp.ones(3))
 
 
+class TestSelectOperator:
+    from erhino.core.combinators import SelectOperator
+
+    def _state(self, switch):
+        from erhino import Coordinates
+
+        return State(
+            coords=Coordinates(time=jnp.arange(float(len(switch))),
+                               extra={"switch_state": jnp.asarray(switch)}),
+        )
+
+    def _branch(self, value):
+        class TimeSource(AbstractOperator):
+            v: jax.Array
+
+            def __call__(self, state):
+                n = state.coords.time.shape[0]
+                return state.with_data(self.v * jnp.ones((n, 2)))
+
+        return TimeSource(v=jnp.array(value))
+
+    def test_selects_per_time_sample(self):
+        from erhino.core.combinators import SelectOperator
+
+        op = SelectOperator(self._branch(1.0), self._branch(10.0), names=("ant", "load"))
+        out = op(self._state([0, 1, 0, 1]))
+        assert jnp.array_equal(out.data[:, 0], jnp.array([1.0, 10.0, 1.0, 10.0]))
+
+    def test_out_of_range_selects_nothing(self):
+        from erhino.core.combinators import SelectOperator
+
+        op = SelectOperator(self._branch(1.0), self._branch(10.0))
+        out = op(self._state([0, 7, 1]))
+        assert jnp.array_equal(out.data[:, 0], jnp.array([1.0, 0.0, 10.0]))
+
+    def test_missing_switch_state_raises(self):
+        from erhino import Coordinates
+        from erhino.core.combinators import SelectOperator
+        from erhino.core.errors import StateValidationError
+
+        op = SelectOperator(self._branch(1.0), self._branch(2.0))
+        with pytest.raises(StateValidationError, match="switch_state"):
+            op(State(coords=Coordinates(time=jnp.arange(3.0))))
+
+    def test_non_integer_switch_rejected(self):
+        from erhino.core.combinators import SelectOperator
+        from erhino.core.errors import StateValidationError
+
+        op = SelectOperator(self._branch(1.0), self._branch(2.0))
+        with pytest.raises(StateValidationError, match="integer"):
+            op(self._state([0.5, 1.0]))
+
+    def test_branches_get_independent_keys_and_no_data(self):
+        from erhino.core.combinators import SelectOperator
+
+        class Probe(AbstractOperator):
+            def __call__(self, state):
+                assert state.data is None
+                n = state.coords.time.shape[0]
+                return state.with_data(jax.random.normal(state.next_key()[0], (n, 1)))
+
+        op = SelectOperator(Probe(), Probe())
+        s = self._state([0, 1]).replace(key=jax.random.key(0), data=jnp.ones((2, 1)))
+        out = op(s)
+        assert out.data.shape == (2, 1)
+        assert not jnp.array_equal(
+            jax.random.key_data(out.key), jax.random.key_data(s.key)
+        )
+
+    def test_jit_and_grad(self):
+        from erhino.core.combinators import SelectOperator
+
+        op = SelectOperator(self._branch(2.0), self._branch(5.0))
+        s = self._state([0, 1, 1])
+        out = eqx.filter_jit(op)(s)
+        assert jnp.array_equal(out.data[:, 0], jnp.array([2.0, 5.0, 5.0]))
+
+        def loss(op):
+            return jnp.sum(op(s).data)
+
+        g = eqx.filter_grad(loss)(op)
+        assert jnp.allclose(g.branches[0].v, 2.0)  # one sample x two freq
+        assert jnp.allclose(g.branches[1].v, 4.0)  # two samples x two freq
+
+    def test_switch_length_mismatch_raises(self):
+        """Regression: a wrong-length switch must not silently broadcast."""
+        from erhino import Coordinates
+        from erhino.core.combinators import SelectOperator
+        from erhino.core.errors import StateValidationError
+
+        op = SelectOperator(self._branch(1.0), self._branch(10.0))
+        state = State(
+            coords=Coordinates(time=jnp.arange(4.0),
+                               extra={"switch_state": jnp.array([1])}),
+        )
+        with pytest.raises(StateValidationError, match="leading time axis"):
+            op(state)
+
+    def test_scalar_leaf_rejected(self):
+        """Regression: a scalar branch leaf must not be broadcast into a time axis."""
+        from erhino.core.combinators import SelectOperator
+        from erhino.core.errors import StateValidationError
+
+        class ScalarSource(AbstractOperator):
+            v: jax.Array
+
+            def __call__(self, state):
+                return state.with_data(self.v)
+
+        op = SelectOperator(ScalarSource(v=jnp.array(1.0)), ScalarSource(v=jnp.array(2.0)))
+        with pytest.raises(StateValidationError, match="leading time axis"):
+            op(self._state([0, 1]))
+
+    def test_structure_mismatch_names_select_operator(self):
+        """Regression: _tree_add errors name the combinator that raised them."""
+        from erhino.core.combinators import SelectOperator
+
+        class DictSource(AbstractOperator):
+            def __call__(self, state):
+                n = state.coords.time.shape[0]
+                return state.with_data({"a": jnp.ones((n, 1))})
+
+        op = SelectOperator(self._branch(1.0), DictSource())
+        with pytest.raises(PipelineError, match="SelectOperator branch"):
+            op(self._state([0, 1]))
+
+
 class TestReplaceBranch:
     def test_swaps_and_preserves_names(self):
         op = SumOperator(

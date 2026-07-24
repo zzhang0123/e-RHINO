@@ -22,6 +22,17 @@ Initial architecture of the differentiable scientific pipeline framework.
   bitwise against the hand-built twin.
 - `SumOperator`: branch input data now stripped to `None` (D6 enforced);
   added `replace_branch`.
+- **Selector nodes** (`SelectOperator` + the `"selector"` NodeSpec kind):
+  switched signal paths — one branch selected per time sample via
+  `coords.extra[<node_id>]`. The canonical graph gains `cal_loads`
+  (`CalLoadOperator` placeholder) and the `receiver_input` antenna/load
+  switch, modeling the elements taxonomy's switched calibration signals;
+  pass-through (zero cost) when no load is provided.
+- **Region coverage**: `graph_node`/`At` accept a tuple of node ids — one
+  operator implementing a contiguous template path atomically (disjointness
+  and interior-feed validation; addressed by its last covered node).
+- **HTML rendering**: `SignalGraph.to_html()` / `Assembly.to_html()` produce
+  a standalone lit/dim signal-path page (`examples/render_signal_path.py`).
 
 ### Integration seams (added after initial architecture)
 

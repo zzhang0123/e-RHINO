@@ -31,7 +31,7 @@ from typing import Literal
 
 import equinox as eqx
 
-from erhino.core.combinators import SumOperator
+from erhino.core.combinators import SelectOperator, SumOperator
 from erhino.core.errors import ErhinoError
 from erhino.core.operator import AbstractOperator
 from erhino.core.pipeline import Pipeline
@@ -48,8 +48,10 @@ class NodeSpec:
 
     Attributes:
         kind: ``"source"`` (creates data; in-degree 0), ``"transform"``
-            (data -> data; in-degree 1), or ``"junction"`` (sum point;
-            in-degree >= 2; never an operator slot).
+            (data -> data; in-degree 1), ``"junction"`` (sum point), or
+            ``"selector"`` (switched point: one branch selected per time
+            sample via ``coords.extra[<node_id>]``). Junctions and selectors
+            have in-degree >= 2 and are never operator slots.
         doc: one-line description shown in renderings.
         many: sources only — allow multiple instances (folded as sibling
             Sum branches). For the sink-side ``filters``-style transform
@@ -59,7 +61,7 @@ class NodeSpec:
             (an equivalent-entry placeholder leaf).
     """
 
-    kind: Literal["source", "transform", "junction"]
+    kind: Literal["source", "transform", "junction", "selector"]
     doc: str = ""
     many: bool = False
     segment: str = "forward"
@@ -68,9 +70,15 @@ class NodeSpec:
 
 @dataclasses.dataclass(frozen=True)
 class At:
-    """Place ``op`` at ``node`` regardless of its class registration."""
+    """Place ``op`` at ``node`` regardless of its class registration.
 
-    node: str
+    ``node`` may also be a tuple of node ids: the operator then *covers* that
+    contiguous region of the template (it implements all of those stages at
+    once). Regions are atomic — no other live branch may feed their interior —
+    and are addressed by their LAST covered node id in the assembly.
+    """
+
+    node: str | tuple[str, ...]
     op: AbstractOperator
 
 
@@ -143,8 +151,11 @@ class SignalGraph:
                 raise AssemblyError(
                     f"Transform node {n!r} must have in-degree <= 1, got {indeg}."
                 )
-            if spec.kind == "junction" and indeg < 2:
-                raise AssemblyError(f"Junction node {n!r} must have in-degree >= 2, got {indeg}.")
+            if spec.kind in ("junction", "selector") and indeg < 2:
+                raise AssemblyError(
+                    f"{spec.kind.capitalize()} node {n!r} must have in-degree >= 2, "
+                    f"got {indeg}."
+                )
 
     # -- rendering -----------------------------------------------------------
 
@@ -159,7 +170,12 @@ class SignalGraph:
         lines = ["flowchart TD"]
         for n, spec in self.nodes.items():
             label = n.replace("_", " ")
-            shape = '(("+"))' if spec.kind == "junction" else f'["{label}"]'
+            if spec.kind == "junction":
+                shape = '(("+"))'
+            elif spec.kind == "selector":
+                shape = '(("sw"))'
+            else:
+                shape = f'["{label}"]'
             lines.append(f"  {n}{shape}")
         for a, b in self.edges:
             lines.append(f"  {a} --> {b}")
@@ -170,6 +186,17 @@ class SignalGraph:
             cls = "lit" if n in lit else ("wire" if n in skipped else "dim")
             lines.append(f"  class {n} {cls};")
         return "\n".join(lines)
+
+    def to_html(
+        self,
+        lit: Iterable[str] = (),
+        skipped: Iterable[str] = (),
+        title: str | None = None,
+    ) -> str:
+        """Standalone HTML page of the template with lit/dim signal-path styling."""
+        from erhino.core.render import signal_path_html
+
+        return signal_path_html(self, lit=lit, skipped=skipped, title=title)
 
     def __repr__(self) -> str:
         return f"SignalGraph({self.name!r}, {len(self.nodes)} nodes, {len(self.edges)} edges)"
@@ -252,6 +279,12 @@ class Assembly(AbstractOperator):
         """Lit/dim mermaid rendering via the registered template."""
         return get_graph(self.graph_name).to_mermaid(lit=self.lit, skipped=self.skipped)
 
+    def to_html(self, title: str | None = None) -> str:
+        """Standalone HTML page: the full graph with this assembly's nodes lit."""
+        return get_graph(self.graph_name).to_html(
+            lit=self.lit, skipped=self.skipped, title=title
+        )
+
     def __repr__(self) -> str:
         return (
             f"Assembly(graph={self.graph_name!r}, lit={list(self.lit)}, "
@@ -266,7 +299,7 @@ def _find_named(op: AbstractOperator, name: str) -> AbstractOperator | None:
     while queue:
         next_level: list[AbstractOperator] = []
         for current in queue:
-            if isinstance(current, (Pipeline, SumOperator)):
+            if isinstance(current, (Pipeline, SumOperator, SelectOperator)):
                 parts = current.stages if isinstance(current, Pipeline) else current.branches
                 for part_name, part in zip(current.names, parts, strict=True):
                     if part_name == name:
@@ -282,6 +315,7 @@ class _Branch:
 
     stages: list[tuple[str, AbstractOperator]]
     sourced: bool
+    origin: str = ""  # root node for diagnostics (defaults to the first stage)
 
     def to_operator(self) -> AbstractOperator:
         if len(self.stages) == 1:
@@ -303,17 +337,42 @@ def _dedup(names: list[str]) -> list[str]:
     return out
 
 
+def _validate_region(graph: SignalGraph, path: tuple[str, ...], op: AbstractOperator):
+    """A region claim must be a contiguous template path with non-junction ends."""
+    edge_set = set(graph.edges)
+    for a, b in zip(path, path[1:], strict=False):
+        if (a, b) not in edge_set:
+            raise AssemblyError(
+                f"{type(op).__name__} claims region {path}, but ({a!r}, {b!r}) is "
+                "not a template edge — a region must cover a contiguous path."
+            )
+    for end in (path[0], path[-1]):
+        if graph.nodes[end].kind in ("junction", "selector"):
+            raise AssemblyError(
+                f"Region {path} of {type(op).__name__} starts/ends on the "
+                f"{graph.nodes[end].kind} node {end!r}; junctions/selectors may only "
+                "be interior to a region."
+            )
+    covered = set(path)
+    for n in path[:-1]:
+        for successor in graph._out[n]:
+            if successor not in covered:
+                raise AssemblyError(
+                    f"Region {path} of {type(op).__name__} is not closed: interior "
+                    f"node {n!r} has an edge to {successor!r} outside the region, "
+                    "whose consumers would lose the intermediate signal. Cover the "
+                    "fork too, or use component operators."
+                )
+
+
 def _resolve(
     graph: SignalGraph, operators: Sequence[AbstractOperator | At]
-) -> dict[str, list[AbstractOperator]]:
+) -> tuple[dict[str, list[AbstractOperator]], list[tuple[tuple[str, ...], AbstractOperator]]]:
     placement: dict[str, list[AbstractOperator]] = {}
+    regions: list[tuple[tuple[str, ...], AbstractOperator]] = []
     for item in operators:
         if isinstance(item, At):
             node, op = item.node, item.op
-            if node not in graph.nodes:
-                raise AssemblyError(
-                    f"At({node!r}, ...): unknown node; known nodes: {list(graph.nodes)}"
-                )
         else:
             op = item
             node = None
@@ -326,16 +385,24 @@ def _resolve(
                     f"{type(op).__name__} declares no graph_node and no At(...) wrapper "
                     f"was given; wrap it as At(node_id, op). Known nodes: {list(graph.nodes)}"
                 )
-            if node not in graph.nodes:
+        nodes = (node,) if isinstance(node, str) else tuple(node)
+        for n in nodes:
+            if n not in graph.nodes:
                 raise AssemblyError(
-                    f"{type(op).__name__}.graph_node = {node!r} is not a node of "
-                    f"graph {graph.name!r}."
+                    f"{type(op).__name__}: {n!r} is not a node of graph "
+                    f"{graph.name!r}; known nodes: {list(graph.nodes)}"
                 )
+        if len(nodes) > 1:
+            _validate_region(graph, nodes, op)
+            regions.append((nodes, op))
+            continue
+        (node,) = nodes
         spec = graph.nodes[node]
-        if spec.kind == "junction":
+        if spec.kind in ("junction", "selector"):
             raise AssemblyError(
-                f"Node {node!r} is a junction — junctions are never operator slots; "
-                "they materialize automatically as SumOperator."
+                f"Node {node!r} is a {spec.kind} — junctions/selectors are never "
+                "operator slots; they materialize automatically as "
+                "SumOperator/SelectOperator."
             )
         existing = placement.setdefault(node, [])
         if existing and not spec.many:
@@ -346,7 +413,19 @@ def _resolve(
                 "At(...) if that is intended."
             )
         existing.append(op)
-    return placement
+
+    # Regions are atomic: no node may belong to two claims of any kind.
+    seen: dict[str, str] = {n: f"operator at {n!r}" for n in placement}
+    for path, op in regions:
+        for n in path:
+            if n in seen:
+                raise AssemblyError(
+                    f"Node {n!r} is claimed both by the region {path} of "
+                    f"{type(op).__name__} and by {seen[n]} — claims must be disjoint."
+                )
+        for n in path:
+            seen[n] = f"the region {path} of {type(op).__name__}"
+    return placement, regions
 
 
 def assemble(
@@ -361,7 +440,12 @@ def assemble(
     """
     if not operators:
         raise AssemblyError("assemble() needs at least one operator.")
-    placement = _resolve(graph, operators)
+    placement, regions = _resolve(graph, operators)
+    region_of: dict[str, int] = {}
+    for idx, (path, _) in enumerate(regions):
+        for n in path:
+            region_of[n] = idx
+    region_entry: dict[int, _Branch | None] = {}
 
     exprs: dict[str, _Branch | None] = {}
     skipped: list[str] = []
@@ -370,26 +454,55 @@ def assemble(
         instances = placement.get(nid, [])
         upstream = [e for e in (exprs[p] for p in graph._in[nid]) if e is not None]
 
-        if spec.kind == "junction":
+        if nid in region_of:
+            idx = region_of[nid]
+            path, region_op = regions[idx]
+            if nid == path[0]:
+                region_entry[idx] = upstream[0] if upstream else None
+            else:
+                for parent in graph._in[nid]:
+                    if parent not in path and exprs[parent] is not None:
+                        raise AssemblyError(
+                            f"Live branch from {parent!r} feeds node {nid!r}, which is "
+                            f"covered by the region {path} of "
+                            f"{type(region_op).__name__} — regions are atomic; drop "
+                            "the branch or use component operators instead."
+                        )
+            if nid == path[-1]:
+                up = region_entry[idx]
+                stages = (list(up.stages) if up else []) + [(nid, region_op)]
+                sourced = graph.nodes[path[0]].kind == "source" or (
+                    up.sourced if up else False
+                )
+                exprs[nid] = _Branch(stages, sourced, origin=path[0])
+            else:
+                exprs[nid] = None
+            continue
+
+        if spec.kind in ("junction", "selector"):
             if len(upstream) == 0:
                 exprs[nid] = None
             elif len(upstream) == 1:
-                skipped.append(nid)  # traversed pass-through junction
+                skipped.append(nid)  # traversed pass-through junction/selector
                 exprs[nid] = upstream[0]
             else:
                 unsourced = [b for b in upstream if not b.sourced]
                 if unsourced:
-                    bad = unsourced[0].stages[0][0]
+                    bad = unsourced[0].origin or unsourced[0].stages[0][0]
                     raise AssemblyError(
-                        f"Transform {bad!r} feeds junction {nid!r} with no live source "
-                        "upstream — a sum branch must generate its own contribution. "
-                        "Provide a source on that branch or drop the transform."
+                        f"Transform {bad!r} feeds {spec.kind} {nid!r} with no live "
+                        "source upstream — a branch must generate its own "
+                        "contribution. Provide a source on that branch or drop it."
                     )
                 branch_names = _dedup([b.label for b in upstream])
-                summed = SumOperator(
-                    *[b.to_operator() for b in upstream], names=branch_names
-                )
-                exprs[nid] = _Branch([(nid, summed)], sourced=True)
+                branch_ops = [b.to_operator() for b in upstream]
+                if spec.kind == "junction":
+                    combined = SumOperator(*branch_ops, names=branch_names)
+                else:
+                    combined = SelectOperator(
+                        *branch_ops, names=branch_names, switch_key=nid
+                    )
+                exprs[nid] = _Branch([(nid, combined)], sourced=True)
         elif spec.kind == "source":
             if not instances:
                 exprs[nid] = None
@@ -417,7 +530,8 @@ def assemble(
     if final is None:
         raise AssemblyError("Nothing to assemble: no provided node reaches the sink.")
 
-    lit = tuple(n for n in graph.nodes if n in placement)
+    claimed = set(placement) | set(region_of)
+    lit = tuple(n for n in graph.nodes if n in claimed)
     live_span = _live_span(graph, lit)
     return Assembly(
         operator=final.to_operator(),
