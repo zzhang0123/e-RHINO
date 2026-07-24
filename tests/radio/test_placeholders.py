@@ -9,9 +9,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import AbstractOperator, State
-from erhino.core.errors import StateValidationError
-from erhino.radio import (
+from dirt import AbstractOperator, State
+from dirt.core.errors import StateValidationError
+from dirt.radio import (
     ADCOperator,
     BackendOperator,
     BeamOperator,

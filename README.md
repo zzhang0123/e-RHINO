@@ -1,10 +1,10 @@
-# e-RHINO
+# dirt-telescope
 
-**erhino** is a general-purpose, extensible, *differentiable* scientific
+**dirt** is a general-purpose, extensible, *differentiable* scientific
 pipeline framework built on [JAX](https://github.com/jax-ml/jax) and
 [Equinox](https://github.com/patrick-kidger/equinox).
 
-Its first application is a **digital twin of a single-dish radio telescope**
+Its first application is a **digital twin of a single-antenna radio telescope**
 (the eventual target instrument is RHINO, a horn antenna for the 21 cm global
 signal — for now the radio operators model a *generic* single dish), and the
 core is domain-agnostic by construction.
@@ -34,9 +34,14 @@ can `jit`, `grad`, and `vmap`.
 ## Install
 
 ```bash
-git clone https://github.com/zzhang0123/e-RHINO
-cd e-RHINO
+git clone https://github.com/zzhang0123/dirt-telescope
+cd dirt-telescope
 uv sync                      # or: pip install -e ".[numpyro]"
+```
+
+```python
+import dirt
+from dirt.radio import assemble
 ```
 
 Requires Python ≥ 3.11, `jax ≥ 0.5`, `equinox ≥ 0.13`.
@@ -45,14 +50,14 @@ Requires Python ≥ 3.11, `jax ≥ 0.5`, `equinox ≥ 0.13`.
 
 ### Forward modelling — composition is implicit in the signal path
 
-The canonical single-dish signal-path graph (`erhino.radio.RADIO_GRAPH`)
+The canonical single-antenna signal-path graph (`dirt.radio.RADIO_GRAPH`)
 knows how elements compose: provide a *set* of operators and `assemble`
 lights up the connected sub-path they induce and compiles it to the
 equivalent `Pipeline`/`SumOperator` nesting. Absent transforms are skipped
 as identity, junctions materialize as sums, and partial models come free:
 
 ```python
-from erhino.radio import (assemble, GlobalSignalOperator, ForegroundOperator,
+from dirt.radio import (assemble, GlobalSignalOperator, ForegroundOperator,
                           SkyOperator, IonosphereOperator, BeamOperator)
 
 sky = assemble(GlobalSignalOperator(...), ForegroundOperator(...))
@@ -82,8 +87,8 @@ The full digital twin is one `assemble` call over the element set — see
 
 ```python
 import jax, jax.numpy as jnp, equinox as eqx
-from erhino import State, Coordinates
-from erhino.radio import assemble  # + the operator imports
+from dirt import State, Coordinates
+from dirt.radio import assemble  # + the operator imports
 
 state = State(
     coords=Coordinates(time=jnp.linspace(0, 60, 128),
@@ -126,7 +131,7 @@ Calibration never lives inside the forward model. The seam is
 via the Equinox partition/combine idiom:
 
 ```python
-from erhino.inference import build_forward_fn, GradientCalibrator
+from dirt.inference import build_forward_fn, GradientCalibrator
 
 # train ONLY the gain; freeze everything else
 spec = jax.tree.map(lambda _: False, twin)
@@ -156,7 +161,7 @@ Run the full demo: `uv run python examples/radio_digital_twin.py`.
 ## Status
 
 The architecture is complete and fully tested (jit+grad+vmap end-to-end).
-`erhino.radio` is organized by the element taxonomy of a single-dish
+`dirt.radio` is organized by the element taxonomy of a single-antenna
 experiment (see `DESIGN.md`):
 
 | Subpackage | Elements |
@@ -176,7 +181,7 @@ which is boolean by nature and bridges to numpy MomentRFI via
 The physics is **deliberately placeholder**: every operator implements
 trivial-but-runnable math that establishes the contract (shapes, PRNG
 consumption, differentiability, linearity in calibration parameters), to be
-replaced by ports from limTOD — the single-dish TOD simulator that will
+replaced by ports from limTOD — the single-antenna TOD simulator that will
 itself be rewritten in JAX + Equinox. Instrument-specific parameters
 (RHINO's band, beam, receiver) arrive later as concrete configurations, not
 framework assumptions.

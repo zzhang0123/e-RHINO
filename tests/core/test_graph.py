@@ -7,8 +7,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino.core.combinators import SumOperator
-from erhino.core.graph import (
+from dirt.core.combinators import SumOperator
+from dirt.core.graph import (
     Assembly,
     AssemblyError,
     At,
@@ -17,9 +17,9 @@ from erhino.core.graph import (
     assemble,
     register_graph,
 )
-from erhino.core.operator import AbstractOperator
-from erhino.core.pipeline import Pipeline
-from erhino.core.state import State
+from dirt.core.operator import AbstractOperator
+from dirt.core.pipeline import Pipeline
+from dirt.core.state import State
 
 S, T, J = "source", "transform", "junction"
 
@@ -257,7 +257,7 @@ class TestAssemblyErgonomics:
 
     def test_nests_in_pipeline(self, graph):
         asm = assemble(graph, SrcA(value=jnp.array(1.0)))
-        from erhino.core.operator import LambdaOperator
+        from dirt.core.operator import LambdaOperator
 
         outer = Pipeline(asm, LambdaOperator.on_data(lambda d: d + 1))
         assert jnp.array_equal(outer(State()).data, jnp.full(3, 2.0))

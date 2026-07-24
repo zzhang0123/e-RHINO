@@ -5,9 +5,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import Pipeline, SnapshotOperator, State
-from erhino.core.errors import StateValidationError
-from erhino.radio import (
+from dirt import Pipeline, SnapshotOperator, State
+from dirt.core.errors import StateValidationError
+from dirt.radio import (
     ApplyCalibrationOperator,
     FourierBandFilter,
     GainOperator,

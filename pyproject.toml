@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "erhino"
+name = "dirt-telescope"
 version = "0.1.0"
-description = "Differentiable scientific pipeline framework (JAX + Equinox); first application: the RHINO radio telescope digital twin"
+description = "DIRT — Differentiable Instrument Response Twin: a differentiable scientific pipeline framework (JAX + Equinox) for single-antenna radio telescopes"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Zheng Zhang" }]
@@ -27,7 +27,7 @@ classifiers = [
 numpyro = ["numpyro"]
 
 [project.urls]
-Repository = "https://github.com/zzhang0123/e-RHINO"
+Repository = "https://github.com/zzhang0123/dirt-telescope"
 
 [dependency-groups]
 dev = [
@@ -37,7 +37,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/erhino"]
+packages = ["src/dirt"]
 
 [tool.ruff]
 line-length = 100
@@ -50,10 +50,10 @@ ignore = ["E741"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --cov=erhino --cov-fail-under=80"
+addopts = "-q --cov=dirt --cov-fail-under=80"
 
 [tool.coverage.run]
-source = ["erhino"]
+source = ["dirt"]
 
 [tool.coverage.report]
 exclude_lines = [

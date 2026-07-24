@@ -1,6 +1,6 @@
 """Render the canonical signal-path graph with an assembly's nodes lit.
 
-Writes ``signal_path.html`` to the current directory — the full single-dish
+Writes ``signal_path.html`` to the current directory — the full single-antenna
 flowchart with the provided operators highlighted, traversed-as-identity
 nodes half-lit, and everything else dimmed. Open it in a browser.
 
@@ -11,7 +11,7 @@ import pathlib
 
 import jax.numpy as jnp
 
-from erhino.radio import (
+from dirt.radio import (
     BeamOperator,
     ForegroundOperator,
     GainOperator,

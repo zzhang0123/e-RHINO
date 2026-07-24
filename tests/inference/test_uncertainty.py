@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino.core.errors import StateValidationError
-from erhino.inference.uncertainty import (
+from dirt.core.errors import StateValidationError
+from dirt.inference.uncertainty import (
     fisher_information,
     parameter_covariance,
     propagate_covariance,
@@ -132,8 +132,8 @@ class TestEndToEndWithPipeline:
         """The seam works: Fisher of the gain through a real assembled twin."""
         import equinox as eqx
 
-        from erhino.inference import build_forward_fn
-        from erhino.radio import GainOperator, SkyOperator, assemble
+        from dirt.inference import build_forward_fn
+        from dirt.radio import GainOperator, SkyOperator, assemble
 
         twin = assemble(
             SkyOperator(amplitude=jnp.array(100.0)),

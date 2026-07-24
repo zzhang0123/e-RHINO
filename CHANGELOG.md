@@ -2,6 +2,14 @@
 
 ## 0.1.0 (unreleased)
 
+### Renamed: e-RHINO -> DIRT (Differentiable Instrument Response Twin)
+
+The framework applies to any single-antenna radio telescope (horns, dipoles,
+dishes), so the RHINO-specific name was retired. Distribution name:
+`dirt-telescope`; import name: `dirt` (was `erhino`). The GitHub repository
+moved to `zzhang0123/dirt-telescope` (old URLs redirect). The canonical graph
+template is now named "single-antenna".
+
 Initial architecture of the differentiable scientific pipeline framework.
 
 ### Inference layer completed (D12)
@@ -10,7 +18,7 @@ Initial architecture of the differentiable scientific pipeline framework.
   priors via `prior_template`/`set_prior`, semantic sample-site names from
   stage names, masked Gaussian likelihood (flags -> zero weight), optional
   noise-std inference, `predict_from_samples` posterior predictive.
-- **Uncertainty propagation** (`erhino.inference.uncertainty`):
+- **Uncertainty propagation** (`dirt.inference.uncertainty`):
   `fisher_information` (exact Jacobians via jacfwd), `parameter_covariance`
   (Cramer-Rao), `propagate_covariance` (delta-method prediction bands),
   `push_forward` (Monte Carlo). Fisher matches NUTS posterior widths on the
@@ -23,7 +31,7 @@ Initial architecture of the differentiable scientific pipeline framework.
 
 ### Graph-guided assembly (D11)
 
-- `erhino.core.graph`: `SignalGraph` declarative signal-path templates
+- `dirt.core.graph`: `SignalGraph` declarative signal-path templates
   (validated DAG, single sink, typed nodes) and `assemble` — compiles a set
   of operator instances into the induced `Pipeline`/`SumOperator` nesting
   (absent sources pruned, absent transforms skipped as identity, junctions
@@ -31,7 +39,7 @@ Initial architecture of the differentiable scientific pipeline framework.
   order). Result is an `Assembly` operator with lit/skipped metadata,
   node-id access (`assembly["gain"]`, `replace_node`), caller-data guards,
   and lit/dim `to_mermaid` rendering.
-- `erhino.radio.graph`: the canonical single-dish graph (26 nodes) with
+- `dirt.radio.graph`: the canonical single-antenna graph (26 nodes) with
   equivalent-entry leaves (`observed_astro_sky` — served by
   `SkySourceOperator`; reserved placeholders `ground_field`, `t_sys_extra`)
   and `graph_node` slots on every radio operator;
@@ -53,7 +61,7 @@ Initial architecture of the differentiable scientific pipeline framework.
 
 ### Integration seams (added after initial architecture)
 
-- **Modular sky** (`erhino.radio.sky`): `AbstractSkyModel` (params → maps) ×
+- **Modular sky** (`dirt.radio.sky`): `AbstractSkyModel` (params → maps) ×
   `AbstractSkyProjector` (maps → TOD, with `adjoint` for linear engines),
   composed by `SkySourceOperator`. Engines: `MatrixProjector` (precomputed
   `generate_sky2sys_projection` matrix — differentiable today),
@@ -67,17 +75,17 @@ Initial architecture of the differentiable scientific pipeline framework.
   adjoint for `SkySpaceFilter` map-making. Matches numpy
   `generate_TOD_sky(..., truncate_frac_thres=0.0)`; enable x64 for
   quantitative accuracy. Optional dependency: `pip install -e '<limTOD>[jax]'`.
-- **MomentRFI** (`erhino.radio.backend`): `MomentRFIFlaggingOperator`
+- **MomentRFI** (`dirt.radio.backend`): `MomentRFIFlaggingOperator`
   (host-callback into `IterativeSurfaceFitter`; existing flags become
   `prior_mask`) + `MaskedGaussianLikelihood` (flags → noise covariance).
-- **Filters** (`erhino.radio.filters`): `AbstractLinearFilter`
+- **Filters** (`dirt.radio.filters`): `AbstractLinearFilter`
   (extract/remove projection semantics) with `SiderealFilter` (day-repeating
   subspace), `SkySpaceFilter` (CG map-make/reproject through any linear sky
   projector), `FourierBandFilter` (fringe-rate/delay bands); plus
   `ApplyCalibrationOperator` and raw-data preservation via
   `State.checkpoint` / `SnapshotOperator`.
 
-### Core (`erhino.core`)
+### Core (`dirt.core`)
 
 - `State`: immutable pytree container (traced `data`/`coords`/`env`/`aux`/`key`,
   static hashable `meta` via `FrozenMapping`); functional updates
@@ -91,14 +99,14 @@ Initial architecture of the differentiable scientific pipeline framework.
   per-branch PRNG subkeys; leafwise pytree accumulation with loud trace-time
   errors on shape/structure mismatch and dataless branches.
 
-### Radio (`erhino.radio`) — placeholder physics, real contracts
+### Radio (`dirt.radio`) — placeholder physics, real contracts
 
-- Reorganized by the single-dish element taxonomy:
+- Reorganized by the single-antenna element taxonomy:
   `sky/` (uniform, global signal, foregrounds, point sources),
   `environment/` (ionosphere, ground pickup, RFI),
   `instrument/` (beam, sky-side system temperature, noise-wave/reflection
   terms, CW calibration tone, bandpass, gain, thermal noise, EMI, ADC),
-  `backend/` (flagging, averaging). Flat `erhino.radio` API preserved.
+  `backend/` (flagging, averaging). Flat `dirt.radio` API preserved.
 - Chain ordering follows the RHINO system equation
   `P_rec = g (T_ant + T_nw + T_cw) + T_n`: CW tone before bandpass/gain
   (it tracks gain drift only through the gain); sky-side temperatures before
@@ -106,7 +114,7 @@ Initial architecture of the differentiable scientific pipeline framework.
 - `NoiseWaveOperator` preserves linearity in `t_nw = (T_unc, T_cos, T_sin)` —
   the `d = H t_nw` structure GCR sampling relies on.
 
-### Inference (`erhino.inference`)
+### Inference (`dirt.inference`)
 
 - `build_forward_fn(pipeline, state_template, filter_spec)`: the single seam
   between forward models and inference (Equinox partition/combine).

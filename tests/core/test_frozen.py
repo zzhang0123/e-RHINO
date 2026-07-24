@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 
-from erhino.core.frozen import FrozenMapping
+from dirt.core.frozen import FrozenMapping
 
 
 class TestConstruction:

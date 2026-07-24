@@ -9,9 +9,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import Pipeline, State
-from erhino.inference import build_forward_fn, mean_squared_error
-from erhino.radio import (
+from dirt import Pipeline, State
+from dirt.inference import build_forward_fn, mean_squared_error
+from dirt.radio import (
     ADCOperator,
     BackendOperator,
     BeamOperator,

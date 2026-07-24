@@ -5,9 +5,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from erhino.core.coordinates import Coordinates
-from erhino.core.environment import Environment
-from erhino.core.errors import StateValidationError
+from dirt.core.coordinates import Coordinates
+from dirt.core.environment import Environment
+from dirt.core.errors import StateValidationError
 
 
 class TestCoordinatesConstruction:

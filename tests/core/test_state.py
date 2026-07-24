@@ -1,14 +1,14 @@
-"""Tests for State: the immutable pytree container at the heart of erhino."""
+"""Tests for State: the immutable pytree container at the heart of dirt."""
 
 import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino.core.coordinates import Coordinates
-from erhino.core.environment import Environment
-from erhino.core.errors import MissingKeyError, StateValidationError
-from erhino.core.frozen import FrozenMapping
-from erhino.core.state import State
+from dirt.core.coordinates import Coordinates
+from dirt.core.environment import Environment
+from dirt.core.errors import MissingKeyError, StateValidationError
+from dirt.core.frozen import FrozenMapping
+from dirt.core.state import State
 
 
 @pytest.fixture

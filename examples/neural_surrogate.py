@@ -14,9 +14,9 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from erhino import At, Coordinates, State
-from erhino.inference import AdamCalibrator, build_forward_fn
-from erhino.radio import (
+from dirt import At, Coordinates, State
+from dirt.inference import AdamCalibrator, build_forward_fn
+from dirt.radio import (
     GainOperator,
     NeuralOperator,
     ReceiverOperator,

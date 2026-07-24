@@ -5,14 +5,14 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import Pipeline
-from erhino.inference import (
+from dirt import Pipeline
+from dirt.inference import (
     GaussianLikelihood,
     GradientCalibrator,
     build_forward_fn,
     mean_squared_error,
 )
-from erhino.radio import GainOperator, NoiseOperator, SkyOperator
+from dirt.radio import GainOperator, NoiseOperator, SkyOperator
 
 
 @pytest.fixture

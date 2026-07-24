@@ -6,10 +6,10 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import State
-from erhino.core.errors import StateValidationError
-from erhino.inference import GaussianLikelihood, MaskedGaussianLikelihood
-from erhino.radio import MomentRFIFlaggingOperator
+from dirt import State
+from dirt.core.errors import StateValidationError
+from dirt.inference import GaussianLikelihood, MaskedGaussianLikelihood
+from dirt.radio import MomentRFIFlaggingOperator
 
 
 class TestMaskedGaussianLikelihood:

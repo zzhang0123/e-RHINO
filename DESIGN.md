@@ -1,4 +1,4 @@
-# e-RHINO Architecture
+# DIRT Architecture
 
 Design record for the differentiable scientific pipeline framework. The goal
 is a **reusable framework**, not a one-off simulator: the radio telescope
@@ -7,13 +7,13 @@ digital twin is the first Pipeline, not the design center.
 ## Layering
 
 ```
-erhino.core        State / Operator / Pipeline / SumOperator   (domain-agnostic)
-erhino.radio       single-dish operators, organized by element  (placeholder physics)
+dirt.core        State / Operator / Pipeline / SumOperator   (domain-agnostic)
+dirt.radio       single-antenna operators, organized by element  (placeholder physics)
                    taxonomy: sky / environment / instrument / backend
-erhino.inference   likelihood / calibration        (treats pipelines as data)
+dirt.inference   likelihood / calibration        (treats pipelines as data)
 ```
 
-**Hard rule:** `erhino.core` never imports from `radio` or `inference`. If the
+**Hard rule:** `dirt.core` never imports from `radio` or `inference`. If the
 framework proves reusable beyond radio astronomy, `core` graduates to its own
 package by moving one directory.
 
@@ -134,7 +134,7 @@ as MomentRFI's `prior_mask` so flaggers compose instead of clobbering.
 
 ### D11 — Composition is implicit in the signal path: graph-guided assembly
 
-The canonical signal-path graph (`erhino/radio/graph.py`, rendered by
+The canonical signal-path graph (`dirt/radio/graph.py`, rendered by
 `Assembly.to_mermaid`) makes explicit composition unnecessary:
 `assemble(*operators)` compiles a *set* of operator instances into the
 Pipeline/SumOperator nesting induced on the graph — absent sources are
@@ -235,7 +235,7 @@ runtime concepts:
 
 ## Element taxonomy → module map
 
-`erhino.radio` mirrors the element taxonomy of a single-dish global-signal
+`dirt.radio` mirrors the element taxonomy of a single-antenna global-signal
 experiment (source: `assets/elements.rtf`, local reference material — the
 `assets/` folder is gitignored because it contains an unpublished draft).
 
@@ -270,11 +270,11 @@ Modular sky machinery (D8)
   composed sky slot                        radio/sky/source.py
 Graph-guided assembly (D11)
   SignalGraph template + folder            core/graph.py
-  canonical single-dish graph              radio/graph.py
+  canonical single-antenna graph              radio/graph.py
 ```
 
 Composition follows the physics, per the canonical signal-path graph
-(`erhino/radio/graph.py`, D11): astrophysical components sum
+(`dirt/radio/graph.py`, D11): astrophysical components sum
 (`SumOperator`), the ionosphere distorts that sum, RFI joins as a *pre-beam
 field* (it enters through the sidelobes and is convolved by the shared beam
 node), ground pickup joins as a *post-beam effective temperature*, and the
@@ -298,15 +298,15 @@ stochastic RFI variance, modulated topographic template).
 
 ## Roadmap (physics to port into the placeholder contracts)
 
-The radio operators model a **generic single-dish radio telescope**. The
-primary source for real physics is **limTOD** (the in-house single-dish TOD
+The radio operators model a **generic single-antenna radio telescope**. The
+primary source for real physics is **limTOD** (the in-house single-antenna TOD
 simulator), which will itself be rewritten in JAX + Equinox; until then the
 bodies stay placeholders. Instrument-specific parameters (e.g. RHINO's band,
 horn beam, receiver noise-wave / reflection specs) enter later as concrete
 operator *configurations*, never as framework assumptions.
 
 Note: argosim was considered as a base but not used — it targets
-interferometric arrays, while RHINO is single-dish; limTOD is the right
+interferometric arrays, while RHINO is single-antenna; limTOD is the right
 upstream.
 
 | Operator | Real model (generic single dish) | Source |

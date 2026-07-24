@@ -4,9 +4,9 @@
 > The port lives in the limTOD repo as the `limtod_jax` package
 > (`angles` / `wigner` / `alm` / `hpx` / `core` / `projection` modules, with
 > its own float64 test suite carrying the 1e-6 oracle guarantees below).
-> e-RHINO's adapter is `erhino.radio.sky.NativeLimTODProjector`
-> (`src/erhino/radio/sky/native.py`; lazy import — install the engine with
-> `pip install -e '<limTOD>[jax]'`). e-RHINO-side contract tests:
+> dirt-telescope's adapter is `dirt.radio.sky.NativeLimTODProjector`
+> (`src/dirt/radio/sky/native.py`; lazy import — install the engine with
+> `pip install -e '<limTOD>[jax]'`). dirt-telescope-side contract tests:
 > `tests/radio/test_sky_abstraction.py::TestNativeLimTODProjector`
 > (float32-scale; the healpy-dependent oracle comparisons auto-skip where
 > numpy limTOD is not installed).
@@ -22,17 +22,17 @@
 > full-Stokes).
 
 Task book for the agents rewriting limTOD's sky→TOD machinery in
-JAX + Equinox. The goal: replace e-RHINO's oracle bridge
-(`erhino.radio.sky.projection.LimTODProjector`, a `jax.pure_callback` into
+JAX + Equinox. The goal: replace dirt-telescope's oracle bridge
+(`dirt.radio.sky.projection.LimTODProjector`, a `jax.pure_callback` into
 numpy limTOD) with a **native, differentiable** projector satisfying the same
 interface.
 
 ## Where the port fits
 
-e-RHINO defines the seam; the port fills it:
+dirt-telescope defines the seam; the port fills it:
 
 ```
-erhino.radio.sky.AbstractSkyProjector          # the interface (already exists)
+dirt.radio.sky.AbstractSkyProjector          # the interface (already exists)
     forward(sky, coords) -> (n_time, n_freq)   # observe the sky
     adjoint(tod, coords) -> (n_freq, n_pix)    # transpose (linear projectors)
 
@@ -42,7 +42,7 @@ target:  NativeLimTODProjector = pure JAX                    (differentiable, ge
 ```
 
 The rewritten functions should live in the new JAX limTOD package (not in
-e-RHINO); e-RHINO will add a thin adapter (~15 lines) once they exist.
+dirt-telescope); dirt-telescope will add a thin adapter (~15 lines) once they exist.
 
 ## Functions to port (source: `limTOD/limTOD/simulator.py`)
 
@@ -82,7 +82,7 @@ def generate_tod_sky(beam_alm, sky_alm, zyz_angles, *, lmax: int) -> Array:
     """(n_time, 3) angles -> (n_time,) TOD. Implemented as vmap/scan over #3+#4."""
 ```
 
-An Equinox adapter then satisfies the e-RHINO interface:
+An Equinox adapter then satisfies the dirt-telescope interface:
 
 ```python
 class NativeLimTODProjector(AbstractSkyProjector):
@@ -103,7 +103,7 @@ class NativeLimTODProjector(AbstractSkyProjector):
 3. **vmap** — over the time axis (pointings) and the frequency axis.
 4. **Precision** — Wigner recursions accumulate error: compute in float64
    (tests run with `jax.config.update("jax_enable_x64", True)`); never
-   hardcode float32 (a float32 hardcode was already caught once in e-RHINO
+   hardcode float32 (a float32 hardcode was already caught once in dirt-telescope
    review — follow ambient dtype).
 5. **Static vs traced** — `nside`/`lmax`: static ints. Angles, alms, maps:
    traced. No hashing of arrays.
@@ -123,19 +123,19 @@ class NativeLimTODProjector(AbstractSkyProjector):
    failure modes concentrate at boundaries (zenith gimbal, poles), and a
    moderate-parameter probe will miss them.*
 2. **Adjoint dot-test**: `<forward(x), y> == <x, adjoint(y)>` to rel. 1e-6
-   (this is what e-RHINO's `SkySpaceFilter` map-making relies on).
+   (this is what dirt-telescope's `SkySpaceFilter` map-making relies on).
 3. **jit**: `eqx.filter_jit` compiles; a second call with same shapes does
    not retrace.
 4. **grad**: finite, nonzero, and matches finite differences (1e-4 rel) for
    one sky and one beam component.
 5. **vmap consistency**: vmapped-over-frequency equals the Python loop.
 6. Tests live in the new package's suite as parametrized pytest
-   (see e-RHINO `tests/radio/test_sky_abstraction.py::TestLimTODProjector::
+   (see dirt-telescope `tests/radio/test_sky_abstraction.py::TestLimTODProjector::
    test_oracle_matches_limtod` for the oracle-test pattern to reuse).
 
 ## Out of scope (for this port)
 
 Full-Stokes beams (TIBEC integration — later), horizontal masks, MPI
-(`mpiutil`), gain/noise generation (`TODSim.generate_TOD` — e-RHINO models
-those as separate operators), map-making (`HPW_filter` — e-RHINO's
+(`mpiutil`), gain/noise generation (`TODSim.generate_TOD` — dirt-telescope models
+those as separate operators), map-making (`HPW_filter` — dirt-telescope's
 `SkySpaceFilter` already covers it in JAX).

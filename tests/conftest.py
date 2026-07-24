@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import Coordinates, Environment, State
+from dirt import Coordinates, Environment, State
 
 N_TIME = 8
 N_FREQ = 4

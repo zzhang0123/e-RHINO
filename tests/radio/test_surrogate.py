@@ -5,11 +5,11 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino import State
-from erhino.core.errors import StateValidationError
-from erhino.core.graph import At
-from erhino.inference import AdamCalibrator, build_forward_fn
-from erhino.radio import (
+from dirt import State
+from dirt.core.errors import StateValidationError
+from dirt.core.graph import At
+from dirt.inference import AdamCalibrator, build_forward_fn
+from dirt.radio import (
     GainOperator,
     NeuralOperator,
     ReceiverOperator,

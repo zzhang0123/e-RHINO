@@ -5,10 +5,10 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from erhino.core.errors import PipelineError
-from erhino.core.operator import AbstractOperator, LambdaOperator
-from erhino.core.pipeline import Pipeline
-from erhino.core.state import State
+from dirt.core.errors import PipelineError
+from dirt.core.operator import AbstractOperator, LambdaOperator
+from dirt.core.pipeline import Pipeline
+from dirt.core.state import State
 
 
 class AddOne(AbstractOperator):

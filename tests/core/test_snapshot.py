@@ -3,9 +3,9 @@
 import jax.numpy as jnp
 import pytest
 
-from erhino import Pipeline, SnapshotOperator, State
-from erhino.core.errors import StateValidationError
-from erhino.core.operator import LambdaOperator
+from dirt import Pipeline, SnapshotOperator, State
+from dirt.core.errors import StateValidationError
+from dirt.core.operator import LambdaOperator
 
 
 class TestCheckpoint:
