@@ -144,7 +144,6 @@ Rendered docs: **[dirt-telescope.readthedocs.io](https://dirt-telescope.readthed
 | [Guided tour](docs/tour.md) | The complete API, top to bottom, with runnable snippets |
 | [Operator catalog](docs/operators.md) | Every operator: graph node, role, parameters |
 | [Architecture](DESIGN.md) | Design decisions D1–D12, element taxonomy, physics roadmap |
-| [limTOD port contract](docs/limtod-port-contract.md) | The delivered native sky-engine spec |
 | [Changelog](CHANGELOG.md) | What arrived when |
 | `examples/` | Four end-to-end runnable demos |
 

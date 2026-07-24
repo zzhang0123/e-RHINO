@@ -15,8 +15,8 @@ Three engines, three maturity levels:
   TODAY: the matrix is built offline once, the JAX side is pure einsum.
 - :class:`LimTODProjector` — oracle bridge to numpy limTOD via
   ``jax.pure_callback``: jit-compatible, NOT differentiable. For forward
-  simulation and validation until the native JAX port lands
-  (see ``docs/limtod-port-contract.md``).
+  simulation and validation alongside the delivered native JAX port
+  (:class:`~dirt.radio.sky.native.NativeLimTODProjector`).
 - :class:`MModeProjector` — m-mode transfer matrices for drift scans
   (RHINO's static zenith pointing is the ideal case). Fully differentiable.
 """
@@ -145,9 +145,9 @@ class LimTODProjector(AbstractSkyProjector):
     """Oracle bridge to numpy limTOD (``generate_TOD_sky``) via ``jax.pure_callback``.
 
     Jit-compatible but NOT differentiable and not vmappable — use for forward
-    simulation and as the ground-truth oracle that the native JAX port must
-    match (``docs/limtod-port-contract.md``). Requires the ``limTOD`` package
-    to be importable.
+    simulation and as the ground-truth oracle that the native JAX port
+    (:class:`~dirt.radio.sky.native.NativeLimTODProjector`) is tested
+    against. Requires the ``limTOD`` package to be importable.
 
     Coordinate conventions (degrees, per the RHINO family):
 

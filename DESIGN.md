@@ -121,8 +121,9 @@ different skies. Three engines form a maturity ladder, now complete:
 `MatrixProjector` (offline `generate_sky2sys_projection` matrix — fully
 differentiable for fixed pointing/beam, RHINO's drift-scan case) →
 `NativeLimTODProjector` (**delivered**: pure JAX via the `limtod_jax`
-package, general pointing, differentiable w.r.t. both sky and beam alms,
-exact adjoint; contract and status in `docs/limtod-port-contract.md`).
+package in the limTOD repo, general pointing, differentiable w.r.t. both
+sky and beam alms, exact adjoint; the oracle-equivalence and adjoint
+acceptance tests live in the `limtod_jax` test suite).
 Linear projectors expose `adjoint` (verified by dot-product tests) because
 map-making reuses it (D9).
 
@@ -336,7 +337,7 @@ upstream.
 | IonosphereOperator | chromatic absorption/refraction, time-variable | — |
 | GroundPickupOperator | topographic template, alt/az modulation, beam-coupled | EM sims |
 | RFIOperator | stochastic process model (night-to-night variance) | MomentRFI |
-| BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes); port task book: `docs/limtod-port-contract.md` |
+| BeamOperator | primary-beam convolution (harmonic alm rotation, ZYZ) | limTOD (TIBEC for full-Stokes); |
 | SystemTemperatureOperator | sky-side: atmosphere, ground spill (receiver temp lives in noise-wave T_0 / post-gain noise) | instrument configs |
 | ReceiverOperator | bandpass; reflection/impedance effects | instrument configs |
 | NoiseWaveOperator | full Eq. 1 with F factor; T/Γ per frequency | noise-wave GCR draft |
