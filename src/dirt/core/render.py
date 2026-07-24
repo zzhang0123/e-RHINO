@@ -42,11 +42,17 @@ p.legend { font-size: 13px; color: #5f5e5a; }
 
 
 def _layers(graph) -> dict[str, int]:
-    """Longest-path-from-roots layer per node (topological DP)."""
+    """Layer assignment: longest path from the roots, with root sources
+    pulled down to sit just above their consumers (so e.g. calibration
+    loads render next to the switch they feed instead of at the top with
+    an edge crossing the whole diagram)."""
     layer: dict[str, int] = {}
     for nid in graph._topo:
         parents = graph._in[nid]
         layer[nid] = 0 if not parents else max(layer[p] for p in parents) + 1
+    for nid in graph.nodes:
+        if not graph._in[nid] and graph._out[nid]:
+            layer[nid] = min(layer[s] for s in graph._out[nid]) - 1
     return layer
 
 
@@ -72,17 +78,38 @@ def signal_path_html(
     for nid in graph.nodes:
         by_layer.setdefault(layer[nid], []).append(nid)
     n_layers = max(by_layer) + 1 if by_layer else 0
-    max_row = max(len(v) for v in by_layer.values()) if by_layer else 1
+    pitch = _NODE_W + _X_GAP
 
-    width = 2 * _MARGIN + max_row * (_NODE_W + _X_GAP)
+    # Barycenter sweeps: pull each node toward the mean x of its neighbours,
+    # so the trunk aligns vertically and sources flank their junctions.
+    xs: dict[str, float] = {}
+    for nids in by_layer.values():
+        for i, nid in enumerate(nids):
+            xs[nid] = i * pitch
+    for _ in range(4):
+        for nids in by_layer.values():
+            targets = {}
+            for nid in nids:
+                neighbours = graph._in[nid] + graph._out[nid]
+                targets[nid] = (
+                    sum(xs[m] for m in neighbours) / len(neighbours)
+                    if neighbours else xs[nid]
+                )
+            order = sorted(nids, key=lambda n: targets[n])
+            mean_target = sum(targets.values()) / len(targets)
+            start = mean_target - (len(nids) - 1) * pitch / 2
+            for i, nid in enumerate(order):
+                xs[nid] = start + i * pitch
+
+    x_min = min(xs.values())
+    x_max = max(xs.values())
+    width = int(x_max - x_min + _NODE_W + 2 * _MARGIN)
     height = 2 * _MARGIN + n_layers * (_NODE_H + _Y_GAP)
     centers: dict[str, tuple[float, float]] = {}
     for lyr, nids in by_layer.items():
-        row_w = len(nids) * (_NODE_W + _X_GAP) - _X_GAP
-        x0 = (width - row_w) / 2
-        for i, nid in enumerate(nids):
+        for nid in nids:
             centers[nid] = (
-                x0 + i * (_NODE_W + _X_GAP) + _NODE_W / 2,
+                xs[nid] - x_min + _NODE_W / 2 + _MARGIN,
                 _MARGIN + lyr * (_NODE_H + _Y_GAP) + _NODE_H / 2,
             )
 
