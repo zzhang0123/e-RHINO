@@ -1,195 +1,160 @@
-# dirt-telescope
+# DIRT
 
-**dirt** is a general-purpose, extensible, *differentiable* scientific
-pipeline framework built on [JAX](https://github.com/jax-ml/jax) and
-[Equinox](https://github.com/patrick-kidger/equinox).
+**Differentiable Instrument Response Twin** — a JAX + [Equinox](https://github.com/patrick-kidger/equinox)
+framework for building *differentiable digital twins* of single-antenna radio
+telescopes: horns, dipoles, and dishes alike.
 
-Its first application is a **digital twin of a single-antenna radio telescope**
-(the eventual target instrument is RHINO, a horn antenna for the 21 cm global
-signal — for now the radio operators model a *generic* single dish), and the
-core is domain-agnostic by construction.
+A DIRT twin is one pure function from sky and instrument parameters to raw
+data. Because every stage — foregrounds, ionosphere, beam, receiver
+reflections, gain drifts, digitisation — is differentiable, the same twin
+that *simulates* an observation also *calibrates* it: gradients, Bayesian
+posteriors, Fisher forecasts, and neural surrogates all run through the
+instrument model itself, with no re-implementation.
 
-> **Core principle: everything is an Operator acting on a State.**
+```python
+from dirt.radio import assemble, GlobalSignalOperator, ForegroundOperator, GainOperator
 
+twin = assemble(GlobalSignalOperator(...), ForegroundOperator(...), GainOperator(...))
+observation = twin(state)          # simulate — and differentiate, fit, sample
 ```
-State_in ──▶ Operator ──▶ State_out
-```
 
-- **State** — an immutable JAX pytree carrying the complete scientific
-  context: signal data, coordinates, environment telemetry, metadata, PRNG
-  keys. Fields that don't enter the forward model still ride along for
-  diagnostics, correlation studies, and reproducibility.
-- **Operator** — a pure `State -> State` transformation (`equinox.Module`);
-  its array fields are differentiable parameters for free.
-- **Pipeline** — an ordered, named *sequential* composition of operators;
-  itself an operator, so pipelines nest.
-- **SumOperator** — a *parallel additive* composition: branches produce
-  independent contributions on the same grid (e.g. an antenna temperature
-  assembled from beam-convolved sky + ground components), each with its own
-  PRNG subkey.
+First deployed for RHINO (a horn antenna targeting the 21 cm global signal);
+the core is domain-agnostic by construction.
 
-Because everything is a pytree, an entire instrument model is one function you
-can `jit`, `grad`, and `vmap`.
+## Philosophy
+
+1. **Everything is an operator acting on a state.** One contract —
+   `State in, State out` — covers sky models, instrument effects, data
+   processing, filters, even neural networks. If it transforms the
+   scientific context, it is an operator; there is nothing else to learn.
+
+2. **The twin is a differentiable function.** Every physical parameter is a
+   pytree leaf, so `jit`, `grad`, and `vmap` apply to the *entire
+   instrument*. Systematics stop being nuisances you correct for and become
+   parameters you infer, forecast, and marginalise.
+
+3. **Composition is physics — and it is implicit in the signal path.**
+   Sequential effects chain (`Pipeline`), independent contributions add
+   (`SumOperator`), switched paths select (`SelectOperator`). The canonical
+   signal-path graph knows how elements connect, so `assemble(*operators)`
+   builds the right composition from a *set*: provide only a sky and a beam,
+   get exactly the beam-convolved sky — partial models come free.
+
+4. **Purity everywhere.** States are immutable (functional updates only),
+   randomness is data flowing through the state (one seed reproduces an
+   entire run), and operators have no hidden side effects. This is what
+   makes the whole twin safe to transform.
+
+5. **Forward models never contain inference.** A single seam —
+   `build_forward_fn` — turns any twin into `f(params) -> prediction`.
+   Gradient and Adam calibrators, NumPyro posteriors, Fisher forecasts, and
+   surrogate training all connect there; calibration never contaminates the
+   instrument description.
+
+6. **Interfaces first, physics second.** Every operator ships as a
+   trivial-but-runnable placeholder whose *contract* (shapes, PRNG
+   consumption, linearity in calibration parameters) is real and tested.
+   Real physics replaces function bodies, never interfaces — the native
+   differentiable limTOD sky engine arrived exactly this way.
+
+7. **Loud failure over silent wrongness.** Structural validation at every
+   boundary, trace-time (jit-safe) shape checks, provenance-tagged
+   covariance matrices, assembly-time graph errors. In a framework built to
+   chase 0.1 % systematics, a wrong number is worse than an exception.
+
+8. **The core is domain-agnostic.** `dirt.core` never imports the radio
+   layer (a test enforces it). Radio astronomy is the first application,
+   not the design center.
 
 ## Install
 
 ```bash
+pip install dirt-telescope            # import name: dirt
+# or, for development:
 git clone https://github.com/zzhang0123/dirt-telescope
-cd dirt-telescope
-uv sync                      # or: pip install -e ".[numpyro]"
+cd dirt-telescope && uv sync          # extras: uv sync --extra numpyro
 ```
 
-```python
-import dirt
-from dirt.radio import assemble
-```
+Requires Python ≥ 3.11, `jax ≥ 0.5`, `equinox ≥ 0.13`. (An unrelated,
+abandoned package owns the name `dirt` on PyPI — install `dirt-telescope`.)
 
-Requires Python ≥ 3.11, `jax ≥ 0.5`, `equinox ≥ 0.13`.
-
-## Usage
-
-### Forward modelling — composition is implicit in the signal path
-
-The canonical single-antenna signal-path graph (`dirt.radio.RADIO_GRAPH`)
-knows how elements compose: provide a *set* of operators and `assemble`
-lights up the connected sub-path they induce and compiles it to the
-equivalent `Pipeline`/`SumOperator` nesting. Absent transforms are skipped
-as identity, junctions materialize as sums, and partial models come free:
-
-```python
-from dirt.radio import (assemble, GlobalSignalOperator, ForegroundOperator,
-                          SkyOperator, IonosphereOperator, BeamOperator)
-
-sky = assemble(GlobalSignalOperator(...), ForegroundOperator(...))
-#  ≡ SumOperator(signal, foregrounds)                     — just the sky
-
-part = assemble(SkyOperator(...), IonosphereOperator(...), BeamOperator(...))
-#  ≡ Pipeline(sky, ionosphere, beam)                      — beam-convolved sky only
-
-print(part)               # lit nodes + skipped-as-identity nodes
-print(part.to_mermaid())  # lit/dim signal-path rendering (mermaid)
-open("signal_path.html", "w").write(part.to_html())   # standalone lit/dim page
-```
-
-Switched calibration is a first-class graph concept: provide
-`CalLoadOperator` alongside the antenna chain and the `receiver_input`
-*selector* node switches between them per time sample, driven by the cycle
-in `coords.extra["receiver_input"]` (0 = antenna, 1 = load). Without a load
-the selector passes through at zero cost.
-
-The same physical effect may enter at different stages in different forms —
-the graph reserves *equivalent-entry leaves* for each (e.g. ground spill as
-a pre-beam field to convolve, or as a post-beam effective temperature via
-`ground_pickup`/`t_sys_extra`). See DESIGN.md D11.
-
-The full digital twin is one `assemble` call over the element set — see
-`examples/radio_digital_twin.py` for the complete runnable version:
+## Sixty seconds of DIRT
 
 ```python
 import jax, jax.numpy as jnp, equinox as eqx
 from dirt import State, Coordinates
-from dirt.radio import assemble  # + the operator imports
+from dirt.radio import assemble, SkyOperator, GainOperator, NoiseOperator
+from dirt.inference import build_forward_fn, GradientCalibrator
 
 state = State(
     coords=Coordinates(time=jnp.linspace(0, 60, 128),
                        freq=jnp.linspace(60e6, 85e6, 32)),
     key=jax.random.key(0),
-    meta={"telescope": "generic-dish", "obs_id": "demo-001"},
+    meta={"telescope": "my-antenna"},
 )
 
+# 1. Simulate: provide operators; the signal-path graph composes them.
 twin = assemble(
-    GlobalSignalOperator(...), ForegroundOperator(...), PointSourceOperator(...),
-    IonosphereOperator(...), RFIOperator(...),          # pre-beam field
-    BeamOperator(...),                                  # shared chromatic beam
-    GroundPickupOperator(...),                          # post-beam effective temp
-    SystemTemperatureOperator(...), NoiseWaveOperator(...),
-    CWCalibrationOperator(...), ReceiverOperator(...), GainOperator(...),
-    NoiseOperator(...), EMIOperator(...), ADCOperator(...),
-    FlaggingOperator(...), BackendOperator(...),
+    SkyOperator(amplitude=jnp.array(1e3)),
+    GainOperator(gain=jnp.array(1.1)),          # the truth to recover
+    NoiseOperator(sigma=jnp.array(0.5)),
 )
+observed = eqx.filter_jit(twin)(state)
 
-observation = eqx.filter_jit(twin)(state)     # simulated waterfall + aux flags
-```
-
-Explicit `Pipeline`/`SumOperator` composition remains first-class —
-`assemble` merely compiles to it (the equivalence is regression-tested
-bitwise), with the chain order pinned by the element taxonomy and the RHINO
-system equation `P_rec = g (T_ant + T_nw + T_cw) + T_n`.
-
-### Inference / calibration (a separate layer)
-
-The inference layer is complete: gradient and Adam calibrators, a real
-NumPyro bridge (pytree priors + semantic site names + masked likelihood +
-posterior predictive), Fisher/delta-method uncertainty forecasts, Monte
-Carlo pushforward, and neural surrogate stages (`NeuralOperator`) — all
-through one seam, `build_forward_fn`. See
-`examples/bayesian_and_uncertainty.py` and `examples/neural_surrogate.py`.
-
-
-Calibration never lives inside the forward model. The seam is
-`build_forward_fn`, which turns a pipeline into `f(params) -> prediction`
-via the Equinox partition/combine idiom:
-
-```python
-from dirt.inference import build_forward_fn, GradientCalibrator
-
-# train ONLY the gain; freeze everything else
-spec = jax.tree.map(lambda _: False, twin)
+# 2. Calibrate: freeze everything except the gain, descend the gradient.
+model = twin.replace_node("gain", GainOperator(gain=jnp.array(1.0)))
+spec = jax.tree.map(lambda _: False, model)
 spec = eqx.tree_at(lambda p: p["gain"].gain, spec, replace=True)
-forward, params0 = build_forward_fn(twin, state, filter_spec=spec)
-
+forward, params0 = build_forward_fn(model, state, filter_spec=spec)
 params_fit, losses = GradientCalibrator(learning_rate=2e-7, n_steps=200).fit(
-    forward, params0, observation.data
+    forward, params0, observed.data
 )
+print(jax.tree.leaves(params_fit)[0])           # ~1.1
 ```
 
-Run the full demo: `uv run python examples/radio_digital_twin.py`.
+The same `forward` plugs into NUTS posteriors (`to_numpyro_model`), Fisher
+forecasts (`fisher_information`), and neural-surrogate training — see the
+[guided tour](docs/tour.md).
 
-### Key conventions
+## What is in the box
 
-- **Immutability everywhere**: `state.replace(...)`, `state.with_data(...)`,
-  `pipeline.replace_stage(name, op)` return new objects; nothing mutates.
-- **Metadata rule**: strings/labels go in `state.meta` (static — changing them
-  recompiles); numbers/arrays go in `state.aux` / `env` / `coords` (traced,
-  differentiable).
-- **PRNG protocol**: operators consume randomness with
-  `subkey, state = state.next_key()` and return the advanced state — one seed
-  reproduces an entire run.
-- **Angles**: degrees in public APIs, radians internally (RHINO family
-  convention).
+- **Core** — `State` (immutable pytree context), `Pipeline` / `SumOperator` /
+  `SelectOperator` composition, `SignalGraph` + `assemble` (graph-guided
+  auto-composition with lit/dim mermaid & HTML rendering).
+- **Radio** — a 28-node canonical signal-path graph covering every element of
+  a single-antenna experiment: sky components, ionosphere, RFI, shared
+  chromatic beam, noise-wave/reflection terms, CW tone and switched
+  calibration loads, gain, thermal noise, EMI, ADC, flagging, averaging —
+  plus a modular sky engine (limTOD bridge / projection matrices / m-mode /
+  native differentiable limTOD) and linear analysis filters (sidereal,
+  sky-space map-making, fringe-rate/delay).
+- **Inference** — gradient & Adam calibrators, NumPyro bridge with pytree
+  priors and posterior predictive, Fisher / Cramér-Rao / delta-method
+  uncertainty propagation, Monte Carlo pushforward, `NeuralOperator`
+  surrogate stages, MomentRFI flagging bridge, masked likelihoods.
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [Guided tour](docs/tour.md) | The complete API, top to bottom, with runnable snippets |
+| [Operator catalog](docs/operators.md) | Every operator: graph node, role, parameters |
+| [Architecture](DESIGN.md) | Design decisions D1–D12, element taxonomy, physics roadmap |
+| [limTOD port contract](docs/limtod-port-contract.md) | The delivered native sky-engine spec |
+| [Changelog](CHANGELOG.md) | What arrived when |
+| `examples/` | Four end-to-end runnable demos |
 
 ## Status
 
-The architecture is complete and fully tested (jit+grad+vmap end-to-end).
-`dirt.radio` is organized by the element taxonomy of a single-antenna
-experiment (see `DESIGN.md`):
+The architecture and inference layer are complete and tested end-to-end
+(330+ tests, ~96 % coverage, jit+grad+vmap through the full twin; assembly
+is regression-tested bitwise against hand-built composition). Radio operator
+*physics* is deliberately placeholder pending ports from limTOD and friends
+— except the native differentiable sky engine, which is real. Conventions:
+degrees in public APIs, radians internally; strings in `meta` (static),
+numbers in `coords`/`env`/`aux` (traced); one seed reproduces a run.
 
-| Subpackage | Elements |
-|---|---|
-| `radio.sky` | 21 cm global signal, diffuse foregrounds, point sources; **modular sky machinery**: `SkyModel × SkyProjector` — native differentiable limTOD engine (`NativeLimTODProjector`, via `pip install -e '<limTOD>[jax]'`), numpy-limTOD oracle bridge, projection matrices, m-mode |
-| `radio.environment` | ionosphere, ground pickup, RFI |
-| `radio.instrument` | beam, system temperature, noise-wave/reflection terms, bandpass, gain, CW calibration tone, thermal noise, self-EMI, ADC; calibration application |
-| `radio.backend` | flagging (threshold + MomentRFI bridge), averaging |
-| `radio.filters` | sidereal-repeat, sky-space (CG map-making), fringe-rate/delay filters |
-
-Analysis on calibrated data uses the same Pipeline formalism (see
-`examples/sky_projection_and_filters.py` for snapshot -> apply-calibration ->
-sidereal/sky-space filtering): all steps are differentiable except flagging,
-which is boolean by nature and bridges to numpy MomentRFI via
-`pure_callback`.
-
-The physics is **deliberately placeholder**: every operator implements
-trivial-but-runnable math that establishes the contract (shapes, PRNG
-consumption, differentiability, linearity in calibration parameters), to be
-replaced by ports from limTOD — the single-antenna TOD simulator that will
-itself be rewritten in JAX + Equinox. Instrument-specific parameters
-(RHINO's band, beam, receiver) arrive later as concrete configurations, not
-framework assumptions.
-
-See [DESIGN.md](DESIGN.md) for the architecture decisions and roadmap.
-
-No CI is configured yet; run `uv run pytest` and `uv run ruff check` locally
-before pushing.
+No CI yet — run `uv run pytest` and `uv run ruff check` before pushing.
 
 ## License
 

@@ -1,8 +1,26 @@
 # DIRT Architecture
 
-Design record for the differentiable scientific pipeline framework. The goal
-is a **reusable framework**, not a one-off simulator: the radio telescope
-digital twin is the first Pipeline, not the design center.
+The design record: **why** the framework is shaped the way it is, as twelve
+numbered decisions (D1–D12), each with the constraint that forced it. New
+here? Read the [README](README.md) for the philosophy and the
+[guided tour](docs/tour.md) for the API — this document is for contributors
+and for future-us wondering "why is it like this".
+
+The goal throughout is a **reusable framework**, not a one-off simulator:
+the radio telescope digital twin is the first application, not the design
+center.
+
+Contents: [Layering](#layering) ·
+[D1–D5 core](#d1--state-is-an-eqxmodule-with-a-statictraced-split) ·
+[D6 SumOperator](#d6--sumoperator-parallel-additive-composition-source-only-semantics) ·
+[D7 inference seam](#d7--inference-treats-the-pipeline-as-data) ·
+[D8 sky engine](#d8--modular-sky-skymodel--skyprojector) ·
+[D9 filters](#d9--filters-are-linear-projections-raw-data-survives-via-snapshots) ·
+[D10 callbacks](#d10--host-callback-boundary-policy) ·
+[D11 graph assembly](#d11--composition-is-implicit-in-the-signal-path-graph-guided-assembly) ·
+[D12 inference layer](#d12--bayesian-bridge-uncertainty-propagation-neural-surrogates) ·
+[Element taxonomy → modules](#element-taxonomy--module-map) ·
+[Physics roadmap](#roadmap-physics-to-port-into-the-placeholder-contracts)
 
 ## Layering
 
