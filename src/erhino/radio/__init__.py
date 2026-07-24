@@ -73,6 +73,7 @@ from erhino.radio.sky import (
     SkySourceOperator,
     UniformSkyModel,
 )
+from erhino.radio.surrogate import NeuralOperator
 
 __all__ = [
     "ADCOperator",
@@ -96,6 +97,7 @@ __all__ = [
     "MModeProjector",
     "MatrixProjector",
     "MomentRFIFlaggingOperator",
+    "NeuralOperator",
     "NoiseOperator",
     "NoiseWaveOperator",
     "PointSourceOperator",

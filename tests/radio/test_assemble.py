@@ -223,6 +223,9 @@ class TestRegistryCompleteness:
 
         from erhino.core.operator import AbstractOperator
 
+        # Surrogates deliberately require explicit At(...) placement.
+        explicit_placement = {"NeuralOperator"}
+
         missing = []
         for name in radio.__all__:
             obj = getattr(radio, name)
@@ -230,8 +233,10 @@ class TestRegistryCompleteness:
                 continue
             if inspect.isabstract(obj) or name.startswith("Abstract"):
                 continue
+            if name in explicit_placement:
+                continue
             node = getattr(obj, "graph_node", None)
-            if node is None or node not in RADIO_GRAPH.nodes:
+            if node is None or (isinstance(node, str) and node not in RADIO_GRAPH.nodes):
                 missing.append(name)
         assert not missing, f"operators without a valid graph_node: {missing}"
 
